@@ -1,0 +1,20 @@
+[package]
+name = "server"
+version = "0.1.0"
+authors = ["PepcyCh <pepsich86@163.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "3.3"
+actix-files = "0.5"
+anyhow = "1.0"
+chrono = "0.4"
+diesel = { version = "1.4", features = ["mysql", "r2d2", "chrono"] }
+dotenv = "0.15"
+r2d2 = "0.8"
+serde = "1.0"
+serde_json = "1.0"
+blake2 = "0.9"
+paste = "1.0"
