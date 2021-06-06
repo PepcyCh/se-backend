@@ -2,23 +2,30 @@ use actix_web::web;
 use anyhow::{bail, Context};
 use diesel::prelude::*;
 
-use crate::{database::get_db_conn, DbPool};
+use crate::{database::get_db_conn, models::users::UserData, DbPool};
 
-pub async fn assert_user(pool: &web::Data<DbPool>, username: String) -> anyhow::Result<()> {
+pub async fn assert_user(
+    pool: &web::Data<DbPool>,
+    username: String,
+    check_ban: bool,
+) -> anyhow::Result<()> {
     use crate::schema::users;
 
     let conn = get_db_conn(pool)?;
     let res = web::block(move || {
         users::table
             .filter(users::username.eq(username))
-            .count()
-            .get_result::<i64>(&conn)
+            .get_results::<UserData>(&conn)
     })
     .await
     .context("DB error")?;
 
-    if res == 0 {
+    if res.len() != 1 {
         bail!("No such user");
+    }
+
+    if check_ban && res[0].is_banned {
+        bail!("User is banned");
     }
 
     Ok(())

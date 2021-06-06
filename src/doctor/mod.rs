@@ -2,14 +2,23 @@ mod requests;
 mod responses;
 mod utils;
 
-use crate::{DbPool, database::get_db_conn, models::{doctor_logins::DoctorLoginData, times::NewTime}, protocol::SimpleResponse};
+use crate::{
+    database::get_db_conn,
+    models::{doctor_logins::DoctorLoginData, times::NewTime},
+    protocol::SimpleResponse,
+    DbPool,
+};
 use actix_web::{post, web, HttpResponse, Responder};
 use anyhow::{bail, Context};
 use blake2::{Blake2b, Digest};
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
 
-use self::{requests::{AddTimeRequest, LoginRequest, LogoutRequest}, responses::LoginResponse, utils::get_did_from_token};
+use self::{
+    requests::{AddTimeRequest, LoginRequest, LogoutRequest},
+    responses::LoginResponse,
+    utils::get_did_from_token,
+};
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(login).service(logout).service(add_time);
@@ -101,7 +110,26 @@ async fn add_time_impl(
     let end_time = NaiveDateTime::parse_from_str(&info.end_time, "%Y-%m-%dT%H:%M:%S")
         .context("Wrong format on 'end_time'")?;
 
-    // TODO - time check
+    let conn = get_db_conn(&pool)?;
+    let did_temp = did.clone();
+    let start_time_temp = start_time.clone();
+    let end_time_temp = end_time.clone();
+    let res = web::block(move || {
+        times::table
+            .filter(times::did.eq(did_temp))
+            .filter(
+                times::start_time
+                    .between(start_time_temp, end_time_temp)
+                    .or(times::end_time.between(start_time_temp, end_time_temp)),
+            )
+            .count()
+            .get_result::<i64>(&conn)
+    })
+    .await
+    .context("DB error")?;
+    if res > 0 {
+        bail!("Time interval conflicts with existed times");
+    }
 
     let conn = get_db_conn(&pool)?;
     let data = NewTime {
