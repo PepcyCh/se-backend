@@ -18,7 +18,7 @@ table! {
         username -> Char,
         tid -> Unsigned<Bigint>,
         status -> Char,
-        time -> Nullable<Datetime>,
+        time -> Datetime,
     }
 }
 

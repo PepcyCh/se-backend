@@ -3,7 +3,7 @@ mod responses;
 mod utils;
 
 use crate::{
-    database::get_db_conn,
+    database::{assert, get_db_conn},
     models::{doctor_logins::DoctorLoginData, times::NewTime},
     protocol::SimpleResponse,
     DbPool,
@@ -37,39 +37,37 @@ async fn login_impl(
     use crate::schema::{doctor_logins, doctors};
 
     let info = info.into_inner();
+    assert::assert_doctor(&pool, info.did.clone()).await?;
 
     let conn = get_db_conn(&pool)?;
-    let did = info.did.clone();
-    let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
-    let res = web::block(move || {
-        doctors::table
-            .filter(doctors::did.eq(did))
-            .filter(doctors::password.eq(hashed_password))
-            .count()
-            .get_result::<i64>(&conn)
+    let login_token = web::block(move || {
+        conn.transaction(|| {
+            let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
+            let res = doctors::table
+                .filter(doctors::did.eq(&info.did))
+                .filter(doctors::password.eq(hashed_password))
+                .count()
+                .get_result::<i64>(&conn)
+                .context("DB error")?;
+            if res != 1 {
+                bail!("Wrong password");
+            }
+
+            let login_token = format!("{:x}", Blake2b::digest(info.did.to_string().as_bytes()));
+            let token_data = DoctorLoginData {
+                token: login_token.clone(),
+                did: info.did,
+                login_time: Utc::now().naive_utc(),
+            };
+            diesel::insert_into(doctor_logins::table)
+                .values(token_data)
+                .execute(&conn)
+                .context("DB error")?;
+
+            Ok(login_token)
+        })
     })
-    .await
-    .context("DB error")?;
-
-    if res != 1 {
-        bail!("Wrong ID/Wrong password");
-    }
-
-    let login_token = format!("{:x}", Blake2b::digest(info.did.to_string().as_bytes()));
-
-    let token_data = DoctorLoginData {
-        token: login_token.clone(),
-        did: info.did,
-        login_time: Utc::now().naive_utc(),
-    };
-    let conn = get_db_conn(&pool)?;
-    web::block(move || {
-        diesel::insert_into(doctor_logins::table)
-            .values(token_data)
-            .execute(&conn)
-    })
-    .await
-    .context("DB error")?;
+    .await?;
 
     Ok(LoginResponse {
         success: true,
@@ -111,40 +109,37 @@ async fn add_time_impl(
         .context("Wrong format on 'end_time'")?;
 
     let conn = get_db_conn(&pool)?;
-    let did_temp = did.clone();
-    let start_time_temp = start_time.clone();
-    let end_time_temp = end_time.clone();
-    let res = web::block(move || {
-        times::table
-            .filter(times::did.eq(did_temp))
-            .filter(
-                times::start_time
-                    .between(start_time_temp, end_time_temp)
-                    .or(times::end_time.between(start_time_temp, end_time_temp)),
-            )
-            .count()
-            .get_result::<i64>(&conn)
-    })
-    .await
-    .context("DB error")?;
-    if res > 0 {
-        bail!("Time interval conflicts with existed times");
-    }
-
-    let conn = get_db_conn(&pool)?;
-    let data = NewTime {
-        did,
-        start_time,
-        end_time,
-        capacity: info.capacity,
-    };
     web::block(move || {
-        diesel::insert_into(times::table)
-            .values(data)
-            .execute(&conn)
+        conn.transaction(|| {
+            let res = times::table
+                .filter(times::did.eq(&did))
+                .filter(
+                    times::start_time
+                        .between(&start_time, &end_time)
+                        .or(times::end_time.between(&start_time, &end_time)),
+                )
+                .count()
+                .get_result::<i64>(&conn)
+                .context("DB error")?;
+            if res > 0 {
+                bail!("Time interval conflicts with existed times");
+            }
+
+            let data = NewTime {
+                did,
+                start_time,
+                end_time,
+                capacity: info.capacity,
+            };
+            diesel::insert_into(times::table)
+                .values(data)
+                .execute(&conn)
+                .context("DB error")?;
+
+            Ok(())
+        })
     })
-    .await
-    .context("DB error")?;
+    .await?;
 
     Ok(SimpleResponse::ok())
 }

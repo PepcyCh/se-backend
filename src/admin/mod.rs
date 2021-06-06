@@ -41,34 +41,32 @@ async fn register_impl(
 
     let info = info.into_inner();
 
-    let aid = info.aid.clone();
-    let conn = get_db_conn(&pool)?;
-    let res = web::block(move || {
-        administrators::table
-            .filter(administrators::aid.eq(aid))
-            .count()
-            .get_result::<i64>(&conn)
-    })
-    .await
-    .context("DB error")?;
-
-    if res > 0 {
-        bail!("duplicated ID");
-    }
-
-    let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
-    let data = AdminData {
-        aid: info.aid,
-        password: hashed_password,
-    };
     let conn = get_db_conn(&pool)?;
     web::block(move || {
-        diesel::insert_into(administrators::table)
-            .values(data)
-            .execute(&conn)
+        conn.transaction(|| {
+            let res = administrators::table
+                .filter(administrators::aid.eq(&info.aid))
+                .count()
+                .get_result::<i64>(&conn)
+                .context("DB error")?;
+            if res > 0 {
+                bail!("duplicated ID");
+            }
+
+            let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
+            let data = AdminData {
+                aid: info.aid,
+                password: hashed_password,
+            };
+            diesel::insert_into(administrators::table)
+                .values(data)
+                .execute(&conn)
+                .context("DB error")?;
+
+            Ok(())
+        })
     })
-    .await
-    .context("DB error")?;
+    .await?;
 
     Ok(SimpleResponse::ok())
 }
@@ -80,39 +78,38 @@ async fn login_impl(
     use crate::schema::{admin_logins, administrators};
 
     let info = info.into_inner();
+    assert::assert_admin(&pool, info.aid.clone()).await?;
 
-    let aid = info.aid.clone();
-    let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
     let conn = get_db_conn(&pool)?;
-    let res = web::block(move || {
-        administrators::table
-            .filter(administrators::aid.eq(aid))
-            .filter(administrators::password.eq(hashed_password))
-            .count()
-            .get_result::<i64>(&conn)
+    let login_token = web::block(move || {
+        conn.transaction(|| {
+            let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
+            let res = administrators::table
+                .filter(administrators::aid.eq(&info.aid))
+                .filter(administrators::password.eq(&hashed_password))
+                .count()
+                .get_result::<i64>(&conn)
+                .context("DB error")?;
+
+            if res != 1 {
+                bail!("Wrong password");
+            }
+
+            let login_token = format!("{:x}", Blake2b::digest(info.aid.to_string().as_bytes()));
+            let token_data = AdminLoginData {
+                token: login_token.clone(),
+                aid: info.aid,
+                login_time: Utc::now().naive_utc(),
+            };
+            diesel::insert_into(admin_logins::table)
+                .values(token_data)
+                .execute(&conn)
+                .context("DB error")?;
+
+            Ok(login_token)
+        })
     })
-    .await
-    .context("DB error")?;
-
-    if res != 1 {
-        bail!("Wrong ID/Wrong password");
-    }
-
-    let login_token = format!("{:x}", Blake2b::digest(info.aid.to_string().as_bytes()));
-
-    let token_data = AdminLoginData {
-        token: login_token.clone(),
-        aid: info.aid,
-        login_time: Utc::now().naive_utc(),
-    };
-    let conn = pool.get().context("DB connection error")?;
-    web::block(move || {
-        diesel::insert_into(admin_logins::table)
-            .values(token_data)
-            .execute(&conn)
-    })
-    .await
-    .context("DB error")?;
+    .await?;
 
     Ok(LoginResponse {
         success: true,
@@ -146,51 +143,48 @@ async fn add_doctor_impl(
     use crate::schema::doctors;
 
     let info = info.into_inner();
-
     utils::get_aid_from_token(info.login_token.clone(), &pool).await?;
-
     assert::assert_depart(&pool, info.depart.clone()).await?;
 
     let conn = get_db_conn(&pool)?;
-    let did = info.did.clone();
-    let res = web::block(move || {
-        doctors::table
-            .filter(doctors::did.eq(did))
-            .count()
-            .get_result::<i64>(&conn)
-    })
-    .await
-    .context("DB error")?;
-    if res > 0 {
-        bail!("duplicated ID");
-    }
-
-    // TODO - gender check
-
-    let conn = get_db_conn(&pool)?;
-    let birthday = match NaiveDate::parse_from_str(&info.birthday, "%Y-%m-%d") {
-        Ok(date) => Some(date),
-        Err(_) => None,
-    };
-    // TODO - frontend hashed password ?
-    let hashed_password = format!("{:x}", Blake2b::digest("123456".as_bytes()));
-    let data = DoctorData {
-        did: info.did,
-        name: info.name,
-        password: hashed_password,
-        gender: info.gender,
-        birthday,
-        department: info.depart,
-        rank: info.rank,
-        infomation: None,
-    };
     web::block(move || {
-        diesel::insert_into(doctors::table)
-            .values(data)
-            .execute(&conn)
+        conn.transaction(|| {
+            let res = doctors::table
+                .filter(doctors::did.eq(&info.did))
+                .count()
+                .get_result::<i64>(&conn)
+                .context("DB error")?;
+            if res > 0 {
+                bail!("duplicated ID");
+            }
+
+            // TODO - gender check
+
+            let birthday = match NaiveDate::parse_from_str(&info.birthday, "%Y-%m-%d") {
+                Ok(date) => Some(date),
+                Err(_) => None,
+            };
+            // TODO - frontend hashed password ?
+            let hashed_password = format!("{:x}", Blake2b::digest("123456".as_bytes()));
+            let data = DoctorData {
+                did: info.did,
+                name: info.name,
+                password: hashed_password,
+                gender: info.gender,
+                birthday,
+                department: info.depart,
+                rank: info.rank,
+                infomation: None,
+            };
+            diesel::insert_into(doctors::table)
+                .values(data)
+                .execute(&conn)
+                .context("DB error")?;
+
+            Ok(())
+        })
     })
-    .await
-    .context("DB error")?;
+    .await?;
 
     Ok(SimpleResponse::ok())
 }

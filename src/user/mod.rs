@@ -63,48 +63,47 @@ async fn register_impl(
     let info = info.into_inner();
     let conn = get_db_conn(&pool)?;
 
-    let username = info.username.clone();
-    let res = web::block(move || {
-        users::table
-            .filter(users::username.eq(username))
-            .count()
-            .get_result::<i64>(&conn)
-    })
-    .await
-    .context("DB error")?;
-    if res > 0 {
-        bail!("duplicated username");
-    }
-
-    // TODO - gender check
-    // if info.gender != "Male" && info.gender != "Female" {
-    //     bail!("wrong gender")
-    // }
-
-    let birthday = match NaiveDate::parse_from_str(&info.birthday, "%Y-%m-%d") {
-        Ok(date) => Some(date),
-        Err(_) => None,
-    };
-
-    let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
-    let data = UserData {
-        username: info.username,
-        password: hashed_password,
-        name: info.name,
-        gender: info.gender,
-        birthday,
-        telephone: info.telephone,
-        is_banned: false,
-    };
-
-    let conn = pool.get().context("DB connection error")?;
     web::block(move || {
-        diesel::insert_into(users::table)
-            .values(data)
-            .execute(&conn)
+        conn.transaction(|| {
+            let res = users::table
+                .filter(users::username.eq(&info.username))
+                .count()
+                .get_result::<i64>(&conn)
+                .context("DB error")?;
+            if res > 0 {
+                bail!("duplicated username");
+            }
+
+            // TODO - gender check
+            // if info.gender != "Male" && info.gender != "Female" {
+            //     bail!("wrong gender")
+            // }
+
+            let birthday = match NaiveDate::parse_from_str(&info.birthday, "%Y-%m-%d") {
+                Ok(date) => Some(date),
+                Err(_) => None,
+            };
+
+            let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
+            let data = UserData {
+                username: info.username,
+                password: hashed_password,
+                name: info.name,
+                gender: info.gender,
+                birthday,
+                telephone: info.telephone,
+                is_banned: false,
+            };
+
+            diesel::insert_into(users::table)
+                .values(data)
+                .execute(&conn)
+                .context("DB error")?;
+
+            Ok(())
+        })
     })
-    .await
-    .context("DB error")?;
+    .await?;
 
     Ok(SimpleResponse::ok())
 }
@@ -116,42 +115,38 @@ async fn login_impl(
     use crate::schema::{user_logins, users};
 
     let info = info.into_inner();
+    assert::assert_user(&pool, info.username.clone(), true).await?;
 
-    let username = info.username.clone();
-    assert::assert_user(&pool, username.clone(), true).await?;
-
-    let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
     let conn = get_db_conn(&pool)?;
-    let res = web::block(move || {
-        users::table
-            .filter(users::username.eq(username))
-            .filter(users::password.eq(&hashed_password))
-            .filter(users::is_banned.eq(false))
-            .count()
-            .get_result::<i64>(&conn)
+    let login_token = web::block(move || {
+        conn.transaction(|| {
+            let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
+            let res = users::table
+                .filter(users::username.eq(&info.username))
+                .filter(users::password.eq(&hashed_password))
+                .filter(users::is_banned.eq(false))
+                .count()
+                .get_result::<i64>(&conn)
+                .context("DB error")?;
+            if res != 1 {
+                bail!("Wrong password")
+            }
+
+            let login_token = format!("{:x}", Blake2b::digest(info.username.as_bytes()));
+            let token_data = UserLoginData {
+                token: login_token.clone(),
+                username: info.username,
+                login_time: Utc::now().naive_utc(),
+            };
+            diesel::insert_into(user_logins::table)
+                .values(token_data)
+                .execute(&conn)
+                .context("DB error")?;
+
+            Ok(login_token)
+        })
     })
-    .await
-    .context("DB error")?;
-
-    if res != 1 {
-        bail!("Wrong password")
-    }
-
-    let login_token = format!("{:x}", Blake2b::digest(info.username.as_bytes()));
-
-    let token_data = UserLoginData {
-        token: login_token.clone(),
-        username: info.username.clone(),
-        login_time: Utc::now().naive_utc(),
-    };
-    let conn = get_db_conn(&pool)?;
-    web::block(move || {
-        diesel::insert_into(user_logins::table)
-            .values(token_data)
-            .execute(&conn)
-    })
-    .await
-    .context("DB error")?;
+    .await?;
 
     Ok(LoginResponse {
         success: true,
@@ -189,30 +184,31 @@ async fn modify_password_impl(
     assert::assert_user(&pool, username.clone(), true).await?;
 
     let conn = get_db_conn(&pool)?;
-    let username_temp = username.clone();
-    let hashed_password_old = format!("{:x}", Blake2b::digest(info.password_old.as_bytes()));
-    let res = web::block(move || {
-        users::table
-            .filter(users::username.eq(username_temp))
-            .filter(users::password.eq(hashed_password_old))
-            .count()
-            .get_result::<i64>(&conn)
-    })
-    .await
-    .context("DB error")?;
-    if res != 1 {
-        bail!("Wrong password");
-    }
-
-    let conn = get_db_conn(&pool)?;
-    let hashed_password_new = format!("{:x}", Blake2b::digest(info.password_new.as_bytes()));
     web::block(move || {
-        diesel::update(users::table.filter(users::username.eq(username)))
-            .set(users::password.eq(hashed_password_new))
-            .execute(&conn)
+        conn.transaction(|| {
+            let hashed_password_old =
+                format!("{:x}", Blake2b::digest(info.password_old.as_bytes()));
+            let res = users::table
+                .filter(users::username.eq(&username))
+                .filter(users::password.eq(&hashed_password_old))
+                .count()
+                .get_result::<i64>(&conn)
+                .context("DB error")?;
+            if res != 1 {
+                bail!("Wrong password");
+            }
+
+            let hashed_password_new =
+                format!("{:x}", Blake2b::digest(info.password_new.as_bytes()));
+            diesel::update(users::table.filter(users::username.eq(&username)))
+                .set(users::password.eq(&hashed_password_new))
+                .execute(&conn)
+                .context("DB error")?;
+
+            Ok(())
+        })
     })
-    .await
-    .context("DB error")?;
+    .await?;
 
     Ok(SimpleResponse::ok())
 }
@@ -232,72 +228,59 @@ async fn appoint_impl(
 
     // check appo
     let conn = get_db_conn(&pool)?;
-    let username_temp = username.clone();
-    let res = web::block(move || {
-        appointments::table
-            .filter(appointments::username.eq(username_temp))
-            .filter(appointments::tid.eq(tid))
-            .get_results::<Appointment>(&conn)
-    })
-    .await
-    .context("DB error")?;
-    if res.len() > 0 && res[0].status != APPOINT_STATUS_CANCELED {
-        bail!("Appointment already exists");
-    }
-
-    // check time
-    let conn = get_db_conn(&pool)?;
-    let appo_time = web::block(move || {
-        times::table
-            .filter(times::tid.eq(tid))
-            .get_result::<TimeData>(&conn)
-    })
-    .await
-    .context("DB error")?;
-
-    if appo_time.rest == 0 {
-        bail!("There is no space in thie time");
-    }
-
-    // insert/update appo
-    let conn = get_db_conn(&pool)?;
-    if res.is_empty() {
-        let data = NewAppointment {
-            username,
-            tid,
-            status: APPOINT_STATUS_UNFINISHED.to_string(),
-            time: None,
-        };
-        web::block(move || {
-            diesel::insert_into(appointments::table)
-                .values(data)
-                .execute(&conn)
-        })
-        .await
-        .context("DB error")?;
-    } else {
-        web::block(move || {
-            diesel::update(
-                appointments::table
-                    .filter(appointments::username.eq(username))
-                    .filter(appointments::tid.eq(tid)),
-            )
-            .set(appointments::status.eq(APPOINT_STATUS_UNFINISHED))
-            .execute(&conn)
-        })
-        .await
-        .context("DB error")?;
-    }
-
-    // update time
-    let conn = get_db_conn(&pool)?;
     web::block(move || {
-        diesel::update(times::table.filter(times::tid.eq(tid)))
-            .set(times::rest.eq(times::rest - 1))
-            .execute(&conn)
+        conn.transaction(|| {
+            let res = appointments::table
+                .filter(appointments::username.eq(&username))
+                .filter(appointments::tid.eq(tid))
+                .get_results::<Appointment>(&conn)
+                .context("DB error")?;
+            if res.len() > 0 && res[0].status != APPOINT_STATUS_CANCELED {
+                bail!("Appointment already exists");
+            }
+
+            // check time
+            let appo_time = times::table
+                .filter(times::tid.eq(tid))
+                .get_result::<TimeData>(&conn)
+                .context("DB error")?;
+            if appo_time.rest == 0 {
+                bail!("There is no space in thie time");
+            }
+
+            // insert/update appo
+            if res.is_empty() {
+                let data = NewAppointment {
+                    username,
+                    tid,
+                    status: APPOINT_STATUS_UNFINISHED.to_string(),
+                    time: None,
+                };
+                diesel::insert_into(appointments::table)
+                    .values(data)
+                    .execute(&conn)
+                    .context("DB error")?;
+            } else {
+                diesel::update(
+                    appointments::table
+                        .filter(appointments::username.eq(&username))
+                        .filter(appointments::tid.eq(tid)),
+                )
+                .set(appointments::status.eq(APPOINT_STATUS_UNFINISHED))
+                .execute(&conn)
+                .context("DB error")?;
+            }
+
+            // update time
+            diesel::update(times::table.filter(times::tid.eq(tid)))
+                .set(times::rest.eq(times::rest - 1))
+                .execute(&conn)
+                .context("DB error")?;
+
+            Ok(())
+        })
     })
-    .await
-    .context("DB error")?;
+    .await?;
 
     Ok(SimpleResponse::ok())
 }
@@ -316,46 +299,41 @@ async fn cancel_appoint_impl(
     assert::assert_time(&pool, tid).await?;
 
     let conn = get_db_conn(&pool)?;
-    let username_temp = username.clone();
-    let res = web::block(move || {
-        appointments::table
-            .filter(appointments::username.eq(username_temp))
-            .filter(appointments::tid.eq(tid))
-            .get_results::<Appointment>(&conn)
-    })
-    .await
-    .context("DB error")?;
-    if res.len() == 0 {
-        bail!("Appointment doesn't exist");
-    }
-    match res[0].status.as_str() {
-        APPOINT_STATUS_FINISHED => bail!("Appointment has been finished"),
-        APPOINT_STATUS_CANCELED => bail!("Appointment has been canceled"),
-        _ => {}
-    }
-
-    let conn = get_db_conn(&pool)?;
     web::block(move || {
-        diesel::update(
-            appointments::table
-                .filter(appointments::username.eq(username))
-                .filter(appointments::tid.eq(tid)),
-        )
-        .set(appointments::status.eq(APPOINT_STATUS_CANCELED))
-        .execute(&conn)
-    })
-    .await
-    .context("DB error")?;
+        conn.transaction(|| {
+            let res = appointments::table
+                .filter(appointments::username.eq(&username))
+                .filter(appointments::tid.eq(&tid))
+                .get_results::<Appointment>(&conn)
+                .context("DB error")?;
+            if res.len() == 0 {
+                bail!("Appointment doesn't exist");
+            }
+            match res[0].status.as_str() {
+                APPOINT_STATUS_FINISHED => bail!("Appointment has been finished"),
+                APPOINT_STATUS_CANCELED => bail!("Appointment has been canceled"),
+                _ => {}
+            }
 
-    // update times
-    let conn = get_db_conn(&pool)?;
-    web::block(move || {
-        diesel::update(times::table.filter(times::tid.eq(tid)))
-            .set(times::rest.eq(times::rest + 1))
+            diesel::update(
+                appointments::table
+                    .filter(appointments::username.eq(&username))
+                    .filter(appointments::tid.eq(tid)),
+            )
+            .set(appointments::status.eq(APPOINT_STATUS_CANCELED))
             .execute(&conn)
+            .context("DB error")?;
+
+            // update times
+            diesel::update(times::table.filter(times::tid.eq(tid)))
+                .set(times::rest.eq(times::rest + 1))
+                .execute(&conn)
+                .context("DB error")?;
+
+            Ok(())
+        })
     })
-    .await
-    .context("DB error")?;
+    .await?;
 
     Ok(SimpleResponse::ok())
 }

@@ -51,6 +51,26 @@ pub async fn assert_doctor(pool: &web::Data<DbPool>, did: String) -> anyhow::Res
     Ok(())
 }
 
+pub async fn assert_admin(pool: &web::Data<DbPool>, aid: String) -> anyhow::Result<()> {
+    use crate::schema::administrators;
+
+    let conn = get_db_conn(pool)?;
+    let res = web::block(move || {
+        administrators::table
+            .filter(administrators::aid.eq(aid))
+            .count()
+            .get_result::<i64>(&conn)
+    })
+    .await
+    .context("DB error")?;
+
+    if res == 0 {
+        bail!("No such administrator");
+    }
+
+    Ok(())
+}
+
 pub async fn assert_depart(pool: &web::Data<DbPool>, depart_name: String) -> anyhow::Result<()> {
     use crate::schema::departments;
 
