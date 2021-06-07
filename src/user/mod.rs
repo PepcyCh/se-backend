@@ -18,10 +18,6 @@ use crate::{
         users::UpdateUser,
     },
     protocol::SimpleResponse,
-    user::{
-        responses::{SearchAppointItem, SearchDepartItem, SearchDoctorItem, SearchTimeItem},
-        utils::get_username_from_token,
-    },
     DbPool,
 };
 use actix_web::{post, web, HttpResponse, Responder};
@@ -30,7 +26,7 @@ use blake2::{Blake2b, Digest};
 use chrono::{Datelike, NaiveDate, NaiveDateTime, Utc};
 use diesel::prelude::*;
 
-use self::{requests::*, responses::*};
+use self::{requests::*, responses::*, utils::get_username_from_token};
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(register)
@@ -290,8 +286,8 @@ async fn appoint_impl(
                 .filter(times::tid.eq(tid))
                 .get_result::<TimeData>(&conn)
                 .context("DB error")?;
-            if appo_time.rest == 0 {
-                bail!("There is no space in thie time");
+            if appo_time.capacity == appo_time.appointed {
+                bail!("There is no space in this time");
             }
 
             // insert/update appo
@@ -319,7 +315,7 @@ async fn appoint_impl(
 
             // update time
             diesel::update(times::table.filter(times::tid.eq(tid)))
-                .set(times::rest.eq(times::rest - 1))
+                .set(times::appointed.eq(times::appointed + 1))
                 .execute(&conn)
                 .context("DB error")?;
 
@@ -372,7 +368,7 @@ async fn cancel_appoint_impl(
 
             // update times
             diesel::update(times::table.filter(times::tid.eq(tid)))
-                .set(times::rest.eq(times::rest + 1))
+                .set(times::appointed.eq(times::appointed - 1))
                 .execute(&conn)
                 .context("DB error")?;
 
@@ -518,7 +514,7 @@ async fn search_doctor_impl(
             gender: data.gender,
             age: data
                 .birthday
-                .map_or(-1, |birth| (Utc::today().year() - birth.year()) as i64),
+                .map_or(-1, |birth| Utc::today().year() - birth.year()),
             info: data.infomation,
         })
         .collect();
@@ -617,7 +613,7 @@ async fn search_time_impl(
             .filter(times::did.eq(&did))
             .filter(times::start_time.ge(&start_time))
             .filter(times::end_time.le(&end_time))
-            .filter((times::capacity.gt(times::rest)).or(show_all))
+            .filter((times::capacity.gt(times::appointed)).or(show_all))
             .order(times::start_time.asc())
             .offset(first_index)
             .limit(limit)
@@ -633,7 +629,7 @@ async fn search_time_impl(
             start_time: format!("{}", data.start_time.format(TIME_FMT)),
             end_time: format!("{}", data.end_time.format(TIME_FMT)),
             capacity: data.capacity,
-            rest: data.rest,
+            rest: data.capacity - data.appointed,
         })
         .collect();
 

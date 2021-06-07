@@ -8,7 +8,7 @@ pub struct TimeData {
     pub start_time: NaiveDateTime,
     pub end_time: NaiveDateTime,
     pub capacity: i32,
-    pub rest: i32,
+    pub appointed: i32,
 }
 
 #[derive(Insertable)]
@@ -18,4 +18,12 @@ pub struct NewTime {
     pub start_time: NaiveDateTime,
     pub end_time: NaiveDateTime,
     pub capacity: i32,
+}
+
+#[derive(AsChangeset, Default)]
+#[table_name = "times"]
+pub struct UpdateTime {
+    pub start_time: Option<NaiveDateTime>,
+    pub end_time: Option<NaiveDateTime>,
+    pub capacity: Option<i32>,
 }

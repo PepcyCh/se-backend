@@ -67,7 +67,7 @@ table! {
         start_time -> Datetime,
         end_time -> Datetime,
         capacity -> Integer,
-        rest -> Integer,
+        appointed -> Integer,
     }
 }
 
