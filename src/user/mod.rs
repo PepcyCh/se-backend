@@ -461,7 +461,7 @@ async fn search_depart_impl(
         .into_iter()
         .map(|data| SearchDepartItem {
             name: data.depart_name,
-            info: data.infomation,
+            info: data.information,
         })
         .collect();
 
@@ -511,11 +511,12 @@ async fn search_doctor_impl(
             did: data.did,
             name: data.name,
             depart: data.department,
+            rank: data.rank,
             gender: data.gender,
             age: data
                 .birthday
                 .map_or(-1, |birth| Utc::today().year() - birth.year()),
-            info: data.infomation,
+            info: data.information,
         })
         .collect();
 

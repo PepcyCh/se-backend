@@ -12,7 +12,7 @@ pub struct DoctorData {
     pub department: String,
     #[column_name = "rankk"]
     pub rank: String,
-    pub infomation: String,
+    pub information: String,
 }
 
 #[derive(AsChangeset, Default)]
@@ -21,5 +21,8 @@ pub struct UpdateDoctor {
     pub name: Option<String>,
     pub gender: Option<String>,
     pub birthday: Option<NaiveDate>,
-    pub infomation: Option<String>,
+    pub information: Option<String>,
+    #[column_name = "rankk"]
+    pub rank: Option<String>,
+    pub department: Option<String>,
 }

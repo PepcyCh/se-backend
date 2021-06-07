@@ -164,7 +164,7 @@ async fn modify_info_impl(
     let mut data = UpdateDoctor {
         name: info.name,
         gender: info.gender,
-        infomation: info.info,
+        information: info.info,
         ..Default::default()
     };
     if let Some(birthday) = info.birthday {
@@ -395,7 +395,7 @@ async fn finish_appoint_impl(
     pool: web::Data<DbPool>,
     info: web::Json<FinishAppointRequest>,
 ) -> anyhow::Result<SimpleResponse> {
-    use crate::schema::appointments;
+    use crate::schema::{appointments, times};
 
     let info = info.into_inner();
     get_did_from_token(info.login_token, &pool).await?;
@@ -415,6 +415,19 @@ async fn finish_appoint_impl(
             }
             if appo_data[0].status != APPOINT_STATUS_UNFINISHED {
                 bail!("Only unfinished appointment can be finished");
+            }
+
+            let time_data = times::table
+                .filter(times::tid.eq(&appo_data[0].tid))
+                .get_result::<TimeData>(&conn)
+                .context("DB error")?;
+            let now = Utc::now().naive_utc();
+            if now
+                .signed_duration_since(time_data.start_time)
+                .num_seconds()
+                < 0
+            {
+                bail!("Can't finish a furture appointment");
             }
 
             diesel::update(

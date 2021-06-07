@@ -131,6 +131,7 @@ pub async fn assert_time(pool: &web::Data<DbPool>, tid: u64) -> anyhow::Result<(
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn assert_appoint(
     pool: &web::Data<DbPool>,
     username: String,

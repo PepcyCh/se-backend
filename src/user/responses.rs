@@ -25,6 +25,7 @@ pub struct SearchDoctorItem {
     pub did: String,
     pub name: String,
     pub depart: String,
+    pub rank: String,
     pub gender: String,
     pub age: i32,
     pub info: String,

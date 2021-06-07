@@ -35,7 +35,7 @@ table! {
 table! {
     departments (depart_name) {
         depart_name -> Char,
-        infomation -> Varchar,
+        information -> Varchar,
     }
 }
 
@@ -56,7 +56,7 @@ table! {
         birthday -> Nullable<Date>,
         department -> Char,
         rankk -> Char,
-        infomation -> Varchar,
+        information -> Varchar,
     }
 }
 

@@ -4,5 +4,5 @@ use crate::schema::departments;
 #[table_name = "departments"]
 pub struct DepartData {
     pub depart_name: String,
-    pub infomation: String,
+    pub information: String,
 }
