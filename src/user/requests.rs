@@ -54,3 +54,58 @@ pub struct DeleteCommentRequest {
     pub login_token: String,
     pub cid: u64,
 }
+
+#[derive(Deserialize)]
+pub struct SearchDepartRequest {
+    pub login_token: String,
+    pub depart_name: String,
+    pub first_index: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
+pub struct SearchDoctorRequest {
+    pub login_token: String,
+    pub depart_name: Option<String>,
+    pub doctor_name: Option<String>,
+    pub rank: Option<String>,
+    pub first_index: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
+pub struct SearchCommentRequest {
+    pub login_token: String,
+    pub did: String,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    pub first_index: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
+pub struct SearchTimeRequest {
+    pub login_token: String,
+    pub did: String,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    #[serde(default)]
+    pub show_all: bool,
+    pub first_index: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
+pub struct SearchAppointRequest {
+    pub login_token: String,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    #[serde(default = "search_appoint_request_status_default")]
+    pub status: String,
+    pub first_index: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+fn search_appoint_request_status_default() -> String {
+    crate::models::appointments::APPOINT_STATUS_UNFINISHED.to_string()
+}

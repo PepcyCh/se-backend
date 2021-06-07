@@ -10,26 +10,35 @@ use crate::{
             Appointment, NewAppointment, APPOINT_STATUS_CANCELED, APPOINT_STATUS_FINISHED,
             APPOINT_STATUS_UNFINISHED,
         },
-        comments::NewComment,
+        comments::{Comment, NewComment},
+        departments::DepartData,
+        doctors::DoctorData,
         times::TimeData,
         user_logins::UserLoginData,
     },
     protocol::SimpleResponse,
-    user::utils::get_username_from_token,
+    user::{
+        responses::{SearchDepartItem, SearchDoctorItem, SearchTimeItem},
+        utils::get_username_from_token,
+    },
     DbPool,
 };
 use actix_web::{post, web, HttpResponse, Responder};
 use anyhow::{self, bail, Context};
 use blake2::{Blake2b, Digest};
-use chrono::{NaiveDate, Utc};
+use chrono::{Datelike, NaiveDate, NaiveDateTime, Utc};
 use diesel::prelude::*;
 
 use self::{
     requests::{
         AppointRequest, CancelAppointRequest, CommentRequest, DeleteCommentRequest, LoginRequest,
-        LogoutRequest, ModifyPasswordRequest, RegisterRequest,
+        LogoutRequest, ModifyPasswordRequest, RegisterRequest, SearchAppointRequest,
+        SearchCommentRequest, SearchDepartRequest, SearchDoctorRequest, SearchTimeRequest,
     },
-    responses::LoginResponse,
+    responses::{
+        LoginResponse, SearchAppointResponse, SearchCommentItem, SearchCommentResponse,
+        SearchDepartResponse, SearchDoctorResponse, SearchTimeResponse,
+    },
 };
 
 pub fn config(cfg: &mut web::ServiceConfig) {
@@ -40,7 +49,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(appoint)
         .service(cancel_appoint)
         .service(comment)
-        .service(delete_comment);
+        .service(delete_comment)
+        .service(search_depart)
+        .service(search_doctor)
+        .service(search_comment)
+        .service(search_time);
 }
 
 crate::post_funcs! {
@@ -52,6 +65,10 @@ crate::post_funcs! {
     (cancel_appoint, "/cancel_appoint", CancelAppointRequest, SimpleResponse),
     (comment, "/comment", CommentRequest, SimpleResponse),
     (delete_comment, "/delete_comment", DeleteCommentRequest, SimpleResponse),
+    (search_depart, "/search_depart", SearchDepartRequest, SearchDepartResponse),
+    (search_doctor, "/search_doctor", SearchDoctorRequest, SearchDoctorResponse),
+    (search_comment, "/search_comment", SearchCommentRequest, SearchCommentResponse),
+    (search_time, "/search_time", SearchTimeRequest, SearchTimeResponse),
 }
 
 async fn register_impl(
@@ -388,4 +405,212 @@ async fn delete_comment_impl(
     .context("DB error")?;
 
     Ok(SimpleResponse::ok())
+}
+
+async fn search_depart_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<SearchDepartRequest>,
+) -> anyhow::Result<SearchDepartResponse> {
+    use crate::schema::departments;
+
+    let info = info.into_inner();
+    let username = get_username_from_token(info.login_token, &pool).await?;
+    assert::assert_user(&pool, username, true).await?;
+
+    let conn = get_db_conn(&pool)?;
+    let name_pattern = format!("%{}%", info.depart_name);
+    let first_index = info.first_index.or(Some(0)).unwrap().max(0);
+    let limit = info.limit.or(Some(10)).unwrap().max(0);
+    let departs = web::block(move || {
+        departments::table
+            .filter(departments::depart_name.like(name_pattern))
+            .order(departments::depart_name.asc())
+            .offset(first_index)
+            .limit(limit)
+            .get_results::<DepartData>(&conn)
+    })
+    .await
+    .context("DB error")?;
+
+    let departs = departs
+        .into_iter()
+        .map(|data| SearchDepartItem {
+            name: data.depart_name,
+            info: data.infomation,
+        })
+        .collect();
+
+    Ok(SearchDepartResponse {
+        success: true,
+        err: "".to_string(),
+        departments: departs,
+    })
+}
+
+async fn search_doctor_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<SearchDoctorRequest>,
+) -> anyhow::Result<SearchDoctorResponse> {
+    use crate::schema::doctors;
+
+    let info = info.into_inner();
+    let username = get_username_from_token(info.login_token, &pool).await?;
+    assert::assert_user(&pool, username, true).await?;
+
+    let conn = get_db_conn(&pool)?;
+    let depart_name_pattern = info
+        .depart_name
+        .map_or("%".to_string(), |s| format!("%{}%", s));
+    let doctor_name_pattern = info
+        .doctor_name
+        .map_or("%".to_string(), |s| format!("%{}%", s));
+    let rank = info.rank.or(Some("%".to_string())).unwrap();
+    let first_index = info.first_index.or(Some(0)).unwrap().max(0);
+    let limit = info.limit.or(Some(10)).unwrap().max(0);
+    let docs = web::block(move || {
+        doctors::table
+            .filter(doctors::department.like(depart_name_pattern))
+            .filter(doctors::name.like(doctor_name_pattern))
+            .filter(doctors::rankk.like(rank))
+            .order(doctors::name.asc())
+            .offset(first_index)
+            .limit(limit)
+            .get_results::<DoctorData>(&conn)
+    })
+    .await
+    .context("DB error")?;
+
+    let docs = docs
+        .into_iter()
+        .map(|data| SearchDoctorItem {
+            did: data.did,
+            name: data.name,
+            depart: data.department,
+            gender: data.gender,
+            age: data
+                .birthday
+                .map_or(-1, |birth| (Utc::today().year() - birth.year()) as i64),
+            info: data.infomation,
+        })
+        .collect();
+
+    Ok(SearchDoctorResponse {
+        success: true,
+        err: "".to_string(),
+        doctors: docs,
+    })
+}
+
+async fn search_comment_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<SearchCommentRequest>,
+) -> anyhow::Result<SearchCommentResponse> {
+    use crate::schema::comments;
+    const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S";
+
+    let info = info.into_inner();
+    let username = get_username_from_token(info.login_token, &pool).await?;
+    assert::assert_user(&pool, username, true).await?;
+
+    let time_min =
+        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+    let time_max =
+        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+    let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'start_time'")
+    })?;
+    let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'end_time'")
+    })?;
+    let did = info.did;
+
+    let conn = get_db_conn(&pool)?;
+    let first_index = info.first_index.or(Some(0)).unwrap().max(0);
+    let limit = info.limit.or(Some(10)).unwrap().max(0);
+    let cmts = web::block(move || {
+        comments::table
+            .filter(comments::did.eq(did))
+            .filter(comments::time.between(start_time, end_time))
+            .order(comments::time.desc())
+            .offset(first_index)
+            .limit(limit)
+            .get_results::<Comment>(&conn)
+    })
+    .await
+    .context("DB error")?;
+
+    let cmts = cmts
+        .into_iter()
+        .map(|data| SearchCommentItem {
+            cid: data.cid,
+            username: data.username,
+            comment: data.comment,
+            time: format!("{}", data.time.format(TIME_FMT)),
+        })
+        .collect();
+
+    Ok(SearchCommentResponse {
+        success: true,
+        err: "".to_string(),
+        comments: cmts,
+    })
+}
+
+async fn search_time_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<SearchTimeRequest>,
+) -> anyhow::Result<SearchTimeResponse> {
+    use crate::schema::times;
+    const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S";
+
+    let info = info.into_inner();
+    let username = get_username_from_token(info.login_token, &pool).await?;
+    assert::assert_user(&pool, username, true).await?;
+
+    let time_min =
+        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+    let time_max =
+        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+    let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'start_time'")
+    })?;
+    let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'end_time'")
+    })?;
+    let did = info.did;
+
+    let conn = get_db_conn(&pool)?;
+    let first_index = info.first_index.or(Some(0)).unwrap().max(0);
+    let limit = info.limit.or(Some(10)).unwrap().max(0);
+    let show_all = info.show_all;
+    let tms = web::block(move || {
+        times::table
+            .filter(times::did.eq(did))
+            .filter(times::start_time.ge(start_time))
+            .filter(times::end_time.le(end_time))
+            .filter((times::capacity.gt(times::rest)).or(show_all))
+            .order(times::start_time.asc())
+            .offset(first_index)
+            .limit(limit)
+            .get_results::<TimeData>(&conn)
+    })
+    .await
+    .context("DB error")?;
+
+    let tms = tms
+        .into_iter()
+        .map(|data| SearchTimeItem {
+            tid: data.tid,
+            start_time: format!("{}", data.start_time.format(TIME_FMT)),
+            end_time: format!("{}", data.end_time.format(TIME_FMT)),
+            capacity: data.capacity,
+            rest: data.rest,
+        })
+        .collect();
+
+    Ok(SearchTimeResponse {
+        success: true,
+        err: "".to_string(),
+        times: tms,
+    })
 }

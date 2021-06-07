@@ -107,6 +107,9 @@ async fn add_time_impl(
         .context("Wrong format on 'start_time'")?;
     let end_time = NaiveDateTime::parse_from_str(&info.end_time, "%Y-%m-%dT%H:%M:%S")
         .context("Wrong format on 'end_time'")?;
+    if start_time >= end_time {
+        bail!("Invalid time interval");
+    }
 
     let conn = get_db_conn(&pool)?;
     web::block(move || {

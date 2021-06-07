@@ -12,5 +12,5 @@ pub struct DoctorData {
     pub department: String,
     #[column_name = "rankk"]
     pub rank: String,
-    pub infomation: Option<String>,
+    pub infomation: String,
 }

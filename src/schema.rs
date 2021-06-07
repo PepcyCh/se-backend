@@ -28,14 +28,14 @@ table! {
         username -> Char,
         did -> Char,
         comment -> Varchar,
-        time -> Nullable<Datetime>,
+        time -> Datetime,
     }
 }
 
 table! {
     departments (depart_name) {
         depart_name -> Char,
-        infomation -> Nullable<Varchar>,
+        infomation -> Varchar,
     }
 }
 
@@ -56,7 +56,7 @@ table! {
         birthday -> Nullable<Date>,
         department -> Char,
         rankk -> Char,
-        infomation -> Nullable<Varchar>,
+        infomation -> Varchar,
     }
 }
 

@@ -6,6 +6,6 @@ CREATE TABLE doctors (
     birthday DATE,
     department CHAR(32) NOT NULL,
     rankk CHAR(32) NOT NULL,
-    infomation VARCHAR(256),
+    infomation VARCHAR(256) NOT NULL,
     PRIMARY KEY (did)
 )

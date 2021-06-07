@@ -174,7 +174,7 @@ async fn add_doctor_impl(
                 birthday,
                 department: info.depart,
                 rank: info.rank,
-                infomation: None,
+                infomation: "".to_string(),
             };
             diesel::insert_into(doctors::table)
                 .values(data)
