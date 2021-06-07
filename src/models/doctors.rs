@@ -1,7 +1,8 @@
 use crate::schema::doctors;
 use chrono::NaiveDate;
 
-#[derive(Queryable, Insertable)]
+#[derive(Queryable, Insertable, Identifiable)]
+#[primary_key(did)]
 #[table_name = "doctors"]
 pub struct DoctorData {
     pub did: String,

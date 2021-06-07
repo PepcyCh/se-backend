@@ -15,10 +15,11 @@ use crate::{
         doctors::DoctorData,
         times::TimeData,
         user_logins::UserLoginData,
+        users::UpdateUser,
     },
     protocol::SimpleResponse,
     user::{
-        responses::{SearchDepartItem, SearchDoctorItem, SearchTimeItem},
+        responses::{SearchAppointItem, SearchDepartItem, SearchDoctorItem, SearchTimeItem},
         utils::get_username_from_token,
     },
     DbPool,
@@ -29,23 +30,14 @@ use blake2::{Blake2b, Digest};
 use chrono::{Datelike, NaiveDate, NaiveDateTime, Utc};
 use diesel::prelude::*;
 
-use self::{
-    requests::{
-        AppointRequest, CancelAppointRequest, CommentRequest, DeleteCommentRequest, LoginRequest,
-        LogoutRequest, ModifyPasswordRequest, RegisterRequest, SearchAppointRequest,
-        SearchCommentRequest, SearchDepartRequest, SearchDoctorRequest, SearchTimeRequest,
-    },
-    responses::{
-        LoginResponse, SearchAppointResponse, SearchCommentItem, SearchCommentResponse,
-        SearchDepartResponse, SearchDoctorResponse, SearchTimeResponse,
-    },
-};
+use self::{requests::*, responses::*};
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(register)
         .service(login)
         .service(logout)
         .service(modify_password)
+        .service(modify_info)
         .service(appoint)
         .service(cancel_appoint)
         .service(comment)
@@ -53,7 +45,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(search_depart)
         .service(search_doctor)
         .service(search_comment)
-        .service(search_time);
+        .service(search_time)
+        .service(search_appoint);
 }
 
 crate::post_funcs! {
@@ -61,6 +54,7 @@ crate::post_funcs! {
     (login, "/login", LoginRequest, LoginResponse),
     (logout, "/logout", LogoutRequest, SimpleResponse),
     (modify_password, "/modify_password", ModifyPasswordRequest, SimpleResponse),
+    (modify_info, "/modify_info", ModifyInfoRequest, SimpleResponse),
     (appoint, "/appoint", AppointRequest, SimpleResponse),
     (cancel_appoint, "/cancel_appoint", CancelAppointRequest, SimpleResponse),
     (comment, "/comment", CommentRequest, SimpleResponse),
@@ -69,6 +63,7 @@ crate::post_funcs! {
     (search_doctor, "/search_doctor", SearchDoctorRequest, SearchDoctorResponse),
     (search_comment, "/search_comment", SearchCommentRequest, SearchCommentResponse),
     (search_time, "/search_time", SearchTimeRequest, SearchTimeResponse),
+    (search_appoint, "/search_appoint", SearchAppointRequest, SearchAppointResponse),
 }
 
 async fn register_impl(
@@ -226,6 +221,40 @@ async fn modify_password_impl(
         })
     })
     .await?;
+
+    Ok(SimpleResponse::ok())
+}
+
+async fn modify_info_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<ModifyInfoRequest>,
+) -> anyhow::Result<SimpleResponse> {
+    use crate::schema::users;
+
+    let info = info.into_inner();
+    let username = get_username_from_token(info.login_token, &pool).await?;
+    assert::assert_user(&pool, username.clone(), true).await?;
+
+    let mut data = UpdateUser {
+        name: info.name,
+        gender: info.gender,
+        telephone: info.telephone,
+        ..Default::default()
+    };
+    if let Some(birthday) = info.birthday {
+        let birthday = NaiveDate::parse_from_str(&birthday, "%Y-%m-%d")
+            .context("Wrong format on 'birthday'")?;
+        data.birthday = Some(birthday);
+    }
+
+    let conn = get_db_conn(&pool)?;
+    web::block(move || {
+        diesel::update(users::table.filter(users::username.eq(username)))
+            .set(&data)
+            .execute(&conn)
+    })
+    .await
+    .context("DB error")?;
 
     Ok(SimpleResponse::ok())
 }
@@ -585,9 +614,9 @@ async fn search_time_impl(
     let show_all = info.show_all;
     let tms = web::block(move || {
         times::table
-            .filter(times::did.eq(did))
-            .filter(times::start_time.ge(start_time))
-            .filter(times::end_time.le(end_time))
+            .filter(times::did.eq(&did))
+            .filter(times::start_time.ge(&start_time))
+            .filter(times::end_time.le(&end_time))
             .filter((times::capacity.gt(times::rest)).or(show_all))
             .order(times::start_time.asc())
             .offset(first_index)
@@ -612,5 +641,66 @@ async fn search_time_impl(
         success: true,
         err: "".to_string(),
         times: tms,
+    })
+}
+
+async fn search_appoint_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<SearchAppointRequest>,
+) -> anyhow::Result<SearchAppointResponse> {
+    use crate::schema::{appointments, doctors, times};
+    const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S";
+
+    let info = info.into_inner();
+    let username = get_username_from_token(info.login_token, &pool).await?;
+    assert::assert_user(&pool, username.clone(), true).await?;
+
+    let time_min =
+        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+    let time_max =
+        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+    let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'start_time'")
+    })?;
+    let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'end_time'")
+    })?;
+
+    let conn = get_db_conn(&pool)?;
+    let first_index = info.first_index.or(Some(0)).unwrap().max(0);
+    let limit = info.limit.or(Some(10)).unwrap().max(0);
+    let status = info.status;
+    let appos = web::block(move || {
+        appointments::table
+            .filter(appointments::username.eq(&username))
+            .filter((appointments::status.eq(&status)).or(&status == "All"))
+            .inner_join(times::table.on(appointments::tid.eq(times::tid)))
+            .filter(times::start_time.ge(&start_time))
+            .filter(times::end_time.le(&end_time))
+            .inner_join(doctors::table.on(times::did.eq(doctors::did)))
+            .order(times::start_time.desc())
+            .offset(first_index)
+            .limit(limit)
+            .get_results::<(Appointment, TimeData, DoctorData)>(&conn)
+    })
+    .await
+    .context("DB error")?;
+
+    let appos = appos
+        .into_iter()
+        .map(|(appo_data, time_data, doctor_data)| SearchAppointItem {
+            did: doctor_data.did,
+            doctor_name: doctor_data.name,
+            start_time: format!("{}", time_data.start_time.format(TIME_FMT)),
+            end_time: format!("{}", time_data.end_time.format(TIME_FMT)),
+            status: appo_data.status,
+            time: format!("{}", appo_data.time.format(TIME_FMT)),
+        })
+        .collect();
+
+    Ok(SearchAppointResponse {
+        success: true,
+        err: "".to_string(),
+        appointments: appos,
     })
 }

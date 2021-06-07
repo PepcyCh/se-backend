@@ -31,6 +31,15 @@ pub struct ModifyPasswordRequest {
 }
 
 #[derive(Deserialize)]
+pub struct ModifyInfoRequest {
+    pub login_token: String,
+    pub name: Option<String>,
+    pub gender: Option<String>,
+    pub birthday: Option<String>,
+    pub telephone: Option<String>,
+}
+
+#[derive(Deserialize)]
 pub struct AppointRequest {
     pub login_token: String,
     pub tid: u64,

@@ -91,4 +91,5 @@ crate::impl_err_response! {
     SearchDoctorResponse,
     SearchCommentResponse,
     SearchTimeResponse,
+    SearchAppointResponse,
 }
