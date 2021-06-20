@@ -51,6 +51,15 @@ pub struct DeleteTimeRequest {
 }
 
 #[derive(Deserialize)]
+pub struct SearchTimeRequest {
+    pub login_token: String,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    pub first_index: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
 pub struct SearchAppointRequest {
     pub login_token: String,
     pub start_time: Option<String>,

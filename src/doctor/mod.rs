@@ -31,6 +31,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(add_time)
         .service(modify_time)
         .service(delete_time)
+        .service(search_time)
         .service(search_appoint)
         .service(finish_appoint)
         .service(search_comment);
@@ -44,6 +45,7 @@ crate::post_funcs! {
     (add_time, "/add_time", AddTimeRequest, SimpleResponse),
     (modify_time, "/modify_time", ModifyTimeRequest, SimpleResponse),
     (delete_time, "/delete_time", DeleteTimeRequest, SimpleResponse),
+    (search_time, "/search_time", SearchTimeRequest, SearchTimeResponse),
     (search_appoint, "/search_appoint", SearchAppointRequest, SearchAppointResponse),
     (finish_appoint, "/finish_appoint", FinishAppointRequest, SimpleResponse),
     (search_comment, "/search_comments", SearchCommentRequest, SearchCommentResponse),
@@ -67,9 +69,9 @@ async fn login_impl(
                 .filter(doctors::password.eq(hashed_password))
                 .count()
                 .get_result::<i64>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
             if res != 1 {
-                bail!("Wrong password");
+                bail!("密码错误");
             }
 
             let login_token = format!("{:x}", Blake2b::digest(info.did.to_string().as_bytes()));
@@ -81,7 +83,7 @@ async fn login_impl(
             diesel::insert_into(doctor_logins::table)
                 .values(token_data)
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(login_token)
         })
@@ -108,7 +110,7 @@ async fn logout_impl(
             .execute(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     Ok(SimpleResponse::ok())
 }
@@ -132,9 +134,9 @@ async fn modify_password_impl(
                 .filter(doctors::password.eq(&hashed_password_old))
                 .count()
                 .get_result::<i64>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
             if res != 1 {
-                bail!("Wrong password");
+                bail!("密码错误");
             }
 
             let hashed_password_new =
@@ -142,7 +144,7 @@ async fn modify_password_impl(
             diesel::update(doctors::table.filter(doctors::did.eq(&did)))
                 .set(doctors::password.eq(&hashed_password_new))
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(())
         })
@@ -168,8 +170,7 @@ async fn modify_info_impl(
         ..Default::default()
     };
     if let Some(birthday) = info.birthday {
-        let birthday = NaiveDate::parse_from_str(&birthday, "%Y-%m-%d")
-            .context("Wrong format on 'birthday'")?;
+        let birthday = NaiveDate::parse_from_str(&birthday, "%Y-%m-%d").context("生日格式错误")?;
         data.birthday = Some(birthday);
     }
 
@@ -180,7 +181,7 @@ async fn modify_info_impl(
             .execute(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     Ok(SimpleResponse::ok())
 }
@@ -195,11 +196,11 @@ async fn add_time_impl(
     let did = get_did_from_token(info.login_token.clone(), &pool).await?;
 
     let start_time = NaiveDateTime::parse_from_str(&info.start_time, "%Y-%m-%dT%H:%M:%S")
-        .context("Wrong format on 'start_time'")?;
+        .context("起始时间格式错误")?;
     let end_time = NaiveDateTime::parse_from_str(&info.end_time, "%Y-%m-%dT%H:%M:%S")
-        .context("Wrong format on 'end_time'")?;
+        .context("结束时间格式错误")?;
     if start_time >= end_time {
-        bail!("Invalid time interval");
+        bail!("非法的时间区间");
     }
 
     let conn = get_db_conn(&pool)?;
@@ -214,9 +215,9 @@ async fn add_time_impl(
                 )
                 .count()
                 .get_result::<i64>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
             if res > 0 {
-                bail!("Time interval conflicts with existed times");
+                bail!("时间区间与已有的冲突");
             }
 
             let data = NewTime {
@@ -228,7 +229,7 @@ async fn add_time_impl(
             diesel::insert_into(times::table)
                 .values(data)
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(())
         })
@@ -254,16 +255,19 @@ async fn modify_time_impl(
             let time_data = times::table
                 .filter(times::tid.eq(info.tid))
                 .get_result::<TimeData>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             if time_data.appointed > 0 && (info.start_time.is_some() || info.end_time.is_some()) {
-                bail!("Can't modify time when someone has already appointed it")
+                bail!("不能在已有用户预约的情况下修改时间")
             }
 
             let mut data = UpdateTime::default();
             if let Some(cap) = info.capacity {
                 if cap < time_data.appointed {
-                    bail!(format!("Can't modify capacity to {}, because there are {} people who has appointed it", cap, time_data.appointed));
+                    bail!(format!(
+                        "不能修改容量为 {}, 因为已经有 {} 个用户预约了",
+                        cap, time_data.appointed
+                    ));
                 } else {
                     data.capacity = Some(cap);
                 }
@@ -271,19 +275,19 @@ async fn modify_time_impl(
 
             if let Some(start_time) = info.start_time {
                 let start_time = NaiveDateTime::parse_from_str(&start_time, "%Y-%m-%dT%H:%M:%S")
-                    .context("Wrong format on 'start_time'")?;
+                    .context("起始时间格式错误")?;
                 data.start_time = Some(start_time);
             }
             if let Some(end_time) = info.end_time {
                 let end_time = NaiveDateTime::parse_from_str(&end_time, "%Y-%m-%dT%H:%M:%S")
-                    .context("Wrong format on 'end_time'")?;
+                    .context("结束时间格式错误")?;
                 data.end_time = Some(end_time);
             }
 
             diesel::update(times::table.filter(times::tid.eq(info.tid)))
                 .set(&data)
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(())
         })
@@ -310,14 +314,14 @@ async fn delete_time_impl(
             let time_data = times::table
                 .filter(times::tid.eq(tid))
                 .get_result::<TimeData>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
             if time_data.appointed > 0 {
-                bail!("Can't delete the time because someone has already appointed it");
+                bail!("不能在已有用户预约的情况下删除时间");
             }
 
             diesel::delete(times::table.filter(times::tid.eq(tid)))
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(())
         })
@@ -325,6 +329,61 @@ async fn delete_time_impl(
     .await?;
 
     Ok(SimpleResponse::ok())
+}
+
+async fn search_time_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<SearchTimeRequest>,
+) -> anyhow::Result<SearchTimeResponse> {
+    use crate::schema::times;
+    const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S";
+
+    let info = info.into_inner();
+    let did = get_did_from_token(info.login_token, &pool).await?;
+
+    let time_min =
+        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
+    let time_max =
+        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
+    let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("起始时间格式错误")
+    })?;
+    let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("结束时间格式错误")
+    })?;
+
+    let conn = get_db_conn(&pool)?;
+    let first_index = info.first_index.unwrap_or(0).max(0);
+    let limit = info.limit.unwrap_or(10).max(0);
+    let tms = web::block(move || {
+        times::table
+            .filter(times::did.eq(&did))
+            .filter(times::start_time.ge(&start_time))
+            .filter(times::end_time.le(&end_time))
+            .order(times::start_time.asc())
+            .offset(first_index)
+            .limit(limit)
+            .get_results::<TimeData>(&conn)
+    })
+    .await
+    .context("数据库错误")?;
+
+    let tms = tms
+        .into_iter()
+        .map(|data| SearchTimeItem {
+            tid: data.tid,
+            start_time: format!("{}", data.start_time.format(TIME_FMT)),
+            end_time: format!("{}", data.end_time.format(TIME_FMT)),
+            capacity: data.capacity,
+            rest: data.capacity - data.appointed,
+        })
+        .collect();
+
+    Ok(SearchTimeResponse {
+        success: true,
+        err: "".to_string(),
+        times: tms,
+    })
 }
 
 async fn search_appoint_impl(
@@ -338,19 +397,19 @@ async fn search_appoint_impl(
     let did = get_did_from_token(info.login_token, &pool).await?;
 
     let time_min =
-        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
     let time_max =
-        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
     let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'start_time'")
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("起始时间格式错误")
     })?;
     let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'end_time'")
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("结束时间格式错误")
     })?;
 
     let conn = get_db_conn(&pool)?;
-    let first_index = info.first_index.or(Some(0)).unwrap().max(0);
-    let limit = info.limit.or(Some(10)).unwrap().max(0);
+    let first_index = info.first_index.unwrap_or(0).max(0);
+    let limit = info.limit.unwrap_or(10).max(0);
     let status = info.status;
     let appos = web::block(move || {
         times::table
@@ -358,7 +417,7 @@ async fn search_appoint_impl(
             .filter(times::start_time.ge(&start_time))
             .filter(times::end_time.le(&end_time))
             .inner_join(appointments::table.on(times::tid.eq(appointments::tid)))
-            .filter((appointments::status.eq(&status)).or(&status == "All"))
+            .filter((appointments::status.eq(&status)).or(&status == "所有"))
             .inner_join(users::table.on(appointments::username.eq(users::username)))
             .order(times::start_time.desc())
             .offset(first_index)
@@ -366,7 +425,7 @@ async fn search_appoint_impl(
             .get_results::<(TimeData, Appointment, UserData)>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     let appos = appos
         .into_iter()
@@ -380,7 +439,7 @@ async fn search_appoint_impl(
             start_time: format!("{}", time_data.start_time.format(TIME_FMT)),
             end_time: format!("{}", time_data.end_time.format(TIME_FMT)),
             status: appo_data.status,
-            time: format!("{}", appo_data.time.format(TIME_FMT)),
+            time: format!("{}", appo_data.time.unwrap().format(TIME_FMT)),
         })
         .collect();
 
@@ -409,25 +468,25 @@ async fn finish_appoint_impl(
                 .filter(appointments::username.eq(&username))
                 .filter(appointments::tid.eq(&tid))
                 .get_results::<Appointment>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
             if appo_data.len() != 1 {
-                bail!("No such appointment");
+                bail!("科室不存在");
             }
             if appo_data[0].status != APPOINT_STATUS_UNFINISHED {
-                bail!("Only unfinished appointment can be finished");
+                bail!("只能完成未完成的预约");
             }
 
             let time_data = times::table
                 .filter(times::tid.eq(&appo_data[0].tid))
                 .get_result::<TimeData>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
             let now = Utc::now().naive_utc();
             if now
                 .signed_duration_since(time_data.start_time)
                 .num_seconds()
                 < 0
             {
-                bail!("Can't finish a furture appointment");
+                bail!("不能完成一个还在未来的预约");
             }
 
             diesel::update(
@@ -437,7 +496,7 @@ async fn finish_appoint_impl(
             )
             .set(appointments::status.eq(APPOINT_STATUS_FINISHED))
             .execute(&conn)
-            .context("DB error")?;
+            .context("数据库错误")?;
 
             Ok(())
         })
@@ -458,19 +517,19 @@ async fn search_comment_impl(
     let did = get_did_from_token(info.login_token, &pool).await?;
 
     let time_min =
-        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
     let time_max =
-        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
     let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'start_time'")
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("起始时间格式错误")
     })?;
     let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'end_time'")
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("结束时间格式错误")
     })?;
 
     let conn = get_db_conn(&pool)?;
-    let first_index = info.first_index.or(Some(0)).unwrap().max(0);
-    let limit = info.limit.or(Some(10)).unwrap().max(0);
+    let first_index = info.first_index.unwrap_or(0).max(0);
+    let limit = info.limit.unwrap_or(10).max(0);
     let cmts = web::block(move || {
         comments::table
             .filter(comments::did.eq(&did))
@@ -481,7 +540,7 @@ async fn search_comment_impl(
             .get_results::<Comment>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     let cmts = cmts
         .into_iter()
@@ -489,7 +548,7 @@ async fn search_comment_impl(
             cid: data.cid,
             username: data.username,
             comment: data.comment,
-            time: format!("{}", data.time.format(TIME_FMT)),
+            time: format!("{}", data.time.unwrap().format(TIME_FMT)),
         })
         .collect();
 

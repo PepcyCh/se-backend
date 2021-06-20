@@ -7,7 +7,7 @@ pub struct Comment {
     pub username: String,
     pub did: String,
     pub comment: String,
-    pub time: NaiveDateTime,
+    pub time: Option<NaiveDateTime>,
 }
 
 #[derive(Insertable)]

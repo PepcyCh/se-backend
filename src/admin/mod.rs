@@ -69,9 +69,9 @@ async fn register_impl(
                 .filter(administrators::aid.eq(&info.aid))
                 .count()
                 .get_result::<i64>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
             if res > 0 {
-                bail!("duplicated ID");
+                bail!("ID 重复");
             }
 
             let hashed_password = format!("{:x}", Blake2b::digest(info.password.as_bytes()));
@@ -82,7 +82,7 @@ async fn register_impl(
             diesel::insert_into(administrators::table)
                 .values(data)
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(())
         })
@@ -110,10 +110,10 @@ async fn login_impl(
                 .filter(administrators::password.eq(&hashed_password))
                 .count()
                 .get_result::<i64>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             if res != 1 {
-                bail!("Wrong password");
+                bail!("密码错误");
             }
 
             let login_token = format!("{:x}", Blake2b::digest(info.aid.to_string().as_bytes()));
@@ -125,7 +125,7 @@ async fn login_impl(
             diesel::insert_into(admin_logins::table)
                 .values(token_data)
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(login_token)
         })
@@ -152,7 +152,7 @@ async fn logout_impl(
             .execute(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     Ok(SimpleResponse::ok())
 }
@@ -176,9 +176,9 @@ async fn modify_password_impl(
                 .filter(administrators::password.eq(&hashed_password_old))
                 .count()
                 .get_result::<i64>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
             if res != 1 {
-                bail!("Wrong password");
+                bail!("密码错误");
             }
 
             let hashed_password_new =
@@ -186,7 +186,7 @@ async fn modify_password_impl(
             diesel::update(administrators::table.filter(administrators::aid.eq(&aid)))
                 .set(administrators::password.eq(&hashed_password_new))
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(())
         })
@@ -213,7 +213,7 @@ async fn add_doctor_impl(
                 .filter(doctors::did.eq(&info.did))
                 .count()
                 .get_result::<i64>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
             if res > 0 {
                 bail!("duplicated ID");
             }
@@ -239,7 +239,7 @@ async fn add_doctor_impl(
             diesel::insert_into(doctors::table)
                 .values(data)
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(())
         })
@@ -265,9 +265,9 @@ async fn search_doctor_impl(
     let doctor_name_pattern = info
         .doctor_name
         .map_or("%".to_string(), |s| format!("%{}%", s));
-    let rank = info.rank.or(Some("%".to_string())).unwrap();
-    let first_index = info.first_index.or(Some(0)).unwrap().max(0);
-    let limit = info.limit.or(Some(10)).unwrap().max(0);
+    let rank = info.rank.unwrap_or("%".to_string());
+    let first_index = info.first_index.unwrap_or(0).max(0);
+    let limit = info.limit.unwrap_or(10).max(0);
     let docs = web::block(move || {
         doctors::table
             .filter(doctors::department.like(depart_name_pattern))
@@ -279,7 +279,7 @@ async fn search_doctor_impl(
             .get_results::<DoctorData>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     let docs = docs
         .into_iter()
@@ -321,8 +321,7 @@ async fn modify_doctor_impl(
         ..Default::default()
     };
     if let Some(birthday) = info.birthday {
-        let birthday = NaiveDate::parse_from_str(&birthday, "%Y-%m-%d")
-            .context("Wrong format on 'birthday'")?;
+        let birthday = NaiveDate::parse_from_str(&birthday, "%Y-%m-%d").context("生日格式错误")?;
         data.birthday = Some(birthday);
     }
 
@@ -334,7 +333,7 @@ async fn modify_doctor_impl(
             .execute(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     Ok(SimpleResponse::ok())
 }
@@ -357,9 +356,9 @@ async fn add_depart_impl(
                 .filter(departments::depart_name.eq(&depart_name))
                 .count()
                 .get_result::<i64>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
             if res > 0 {
-                bail!("Duplicated department name");
+                bail!("科室名称重复");
             }
 
             let data = DepartData {
@@ -369,7 +368,7 @@ async fn add_depart_impl(
             diesel::insert_into(departments::table)
                 .values(data)
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(())
         })
@@ -398,7 +397,7 @@ async fn modify_depart_impl(
                 .execute(&conn)
         })
         .await
-        .context("DB error")?;
+        .context("数据库错误")?;
     }
 
     Ok(SimpleResponse::ok())
@@ -415,20 +414,20 @@ async fn search_comment_impl(
     get_aid_from_token(info.login_token, &pool).await?;
 
     let time_min =
-        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
     let time_max =
-        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("Unknown error")?;
+        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
     let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'start_time'")
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("起始时间格式错误")
     })?;
     let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("Wrong format on 'end_time'")
+        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("结束时间格式错误")
     })?;
 
     let conn = get_db_conn(&pool)?;
     let did = info.did;
-    let first_index = info.first_index.or(Some(0)).unwrap().max(0);
-    let limit = info.limit.or(Some(10)).unwrap().max(0);
+    let first_index = info.first_index.unwrap_or(0).max(0);
+    let limit = info.limit.unwrap_or(10).max(0);
     let cmts = web::block(move || {
         comments::table
             .filter(comments::did.eq(&did))
@@ -439,7 +438,7 @@ async fn search_comment_impl(
             .get_results::<Comment>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     let cmts = cmts
         .into_iter()
@@ -447,7 +446,7 @@ async fn search_comment_impl(
             cid: data.cid,
             username: data.username,
             comment: data.comment,
-            time: format!("{}", data.time.format(TIME_FMT)),
+            time: format!("{}", data.time.unwrap().format(TIME_FMT)),
         })
         .collect();
 
@@ -474,7 +473,7 @@ async fn delete_comment_impl(
         diesel::delete(comments::table.filter(comments::cid.eq(cid))).execute(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     Ok(SimpleResponse::ok())
 }
@@ -497,7 +496,7 @@ async fn view_user_impl(
             .get_result::<UserData>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     Ok(ViewUserResponse {
         success: true,
@@ -531,19 +530,19 @@ async fn ban_user_impl(
             let data = users::table
                 .filter(users::username.eq(&username))
                 .get_result::<UserData>(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             if data.is_banned && is_banned {
-                bail!("User has already been banned");
+                bail!("用户已被封禁");
             }
             if !data.is_banned && !is_banned {
-                bail!("User has already been un-banned");
+                bail!("用户已被解封");
             }
 
             diesel::update(users::table.filter(users::username.eq(&username)))
                 .set(users::is_banned.eq(is_banned))
                 .execute(&conn)
-                .context("DB error")?;
+                .context("数据库错误")?;
 
             Ok(())
         })

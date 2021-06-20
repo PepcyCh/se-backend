@@ -6,7 +6,7 @@ pub struct Appointment {
     pub username: String,
     pub tid: u64,
     pub status: String,
-    pub time: NaiveDateTime,
+    pub time: Option<NaiveDateTime>,
 }
 
 #[derive(Insertable)]
@@ -18,6 +18,6 @@ pub struct NewAppointment {
     pub time: Option<NaiveDateTime>,
 }
 
-pub const APPOINT_STATUS_UNFINISHED: &str = "Unfinished";
-pub const APPOINT_STATUS_FINISHED: &str = "Finished";
-pub const APPOINT_STATUS_CANCELED: &str = "Canceled";
+pub const APPOINT_STATUS_UNFINISHED: &str = "未完成";
+pub const APPOINT_STATUS_FINISHED: &str = "已完成";
+pub const APPOINT_STATUS_CANCELED: &str = "已取消";
