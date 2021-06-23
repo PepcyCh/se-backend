@@ -23,7 +23,7 @@ use crate::{
 use actix_web::{post, web, HttpResponse, Responder};
 use anyhow::{self, bail, Context};
 use blake2::{Blake2b, Digest};
-use chrono::{Datelike, NaiveDate, NaiveDateTime, Utc};
+use chrono::{Datelike, NaiveDate, Utc};
 use diesel::prelude::*;
 
 use self::{requests::*, responses::*, utils::get_username_from_token};
@@ -195,13 +195,16 @@ async fn view_info_impl(
         .filter(users::username.eq(&username))
         .get_result::<UserData>(&conn)
         .context("数据库错误")?;
-        
+
     let data = ViewInfoResponse {
         success: true,
         err: "".to_string(),
         username: res.username,
         name: res.name,
-        birthday: format!("{}", res.birthday.unwrap_or(NaiveDate::from_ymd(1970, 1, 1))),
+        birthday: format!(
+            "{}",
+            res.birthday.unwrap_or(NaiveDate::from_ymd(1970, 1, 1))
+        ),
         gender: res.gender,
         telephone: res.telephone,
     };
@@ -558,22 +561,13 @@ async fn search_comment_impl(
     info: web::Json<SearchCommentRequest>,
 ) -> anyhow::Result<SearchCommentResponse> {
     use crate::schema::comments;
-    const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S";
 
     let info = info.into_inner();
     let username = get_username_from_token(info.login_token, &pool).await?;
     assert::assert_user(&pool, username, true).await?;
 
-    let time_min =
-        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
-    let time_max =
-        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
-    let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("起始时间格式错误")
-    })?;
-    let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("结束时间格式错误")
-    })?;
+    let (start_time, end_time) =
+        crate::utils::parse_time_pair_str_opt(info.start_time, info.end_time)?;
     let did = info.did;
 
     let conn = get_db_conn(&pool)?;
@@ -597,7 +591,7 @@ async fn search_comment_impl(
             cid: data.cid,
             username: data.username,
             comment: data.comment,
-            time: format!("{}", data.time.unwrap().format(TIME_FMT)),
+            time: format!("{}", data.time.unwrap().format(crate::utils::TIME_FMT)),
         })
         .collect();
 
@@ -613,22 +607,13 @@ async fn search_time_impl(
     info: web::Json<SearchTimeRequest>,
 ) -> anyhow::Result<SearchTimeResponse> {
     use crate::schema::times;
-    const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S";
 
     let info = info.into_inner();
     let username = get_username_from_token(info.login_token, &pool).await?;
     assert::assert_user(&pool, username, true).await?;
 
-    let time_min =
-        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
-    let time_max =
-        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
-    let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("起始时间格式错误")
-    })?;
-    let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("结束时间格式错误")
-    })?;
+    let (start_time, end_time) =
+        crate::utils::parse_time_pair_str_opt(info.start_time, info.end_time)?;
     let did = info.did;
 
     let conn = get_db_conn(&pool)?;
@@ -653,8 +638,8 @@ async fn search_time_impl(
         .into_iter()
         .map(|data| SearchTimeItem {
             tid: data.tid,
-            start_time: format!("{}", data.start_time.format(TIME_FMT)),
-            end_time: format!("{}", data.end_time.format(TIME_FMT)),
+            start_time: format!("{}", data.start_time.format(crate::utils::TIME_FMT)),
+            end_time: format!("{}", data.end_time.format(crate::utils::TIME_FMT)),
             capacity: data.capacity,
             rest: data.capacity - data.appointed,
         })
@@ -672,22 +657,13 @@ async fn search_appoint_impl(
     info: web::Json<SearchAppointRequest>,
 ) -> anyhow::Result<SearchAppointResponse> {
     use crate::schema::{appointments, doctors, times};
-    const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S";
 
     let info = info.into_inner();
     let username = get_username_from_token(info.login_token, &pool).await?;
     assert::assert_user(&pool, username.clone(), true).await?;
 
-    let time_min =
-        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
-    let time_max =
-        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
-    let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("起始时间格式错误")
-    })?;
-    let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("结束时间格式错误")
-    })?;
+    let (start_time, end_time) =
+        crate::utils::parse_time_pair_str_opt(info.start_time, info.end_time)?;
 
     let conn = get_db_conn(&pool)?;
     let first_index = info.first_index.unwrap_or(0).max(0);
@@ -714,10 +690,10 @@ async fn search_appoint_impl(
         .map(|(appo_data, time_data, doctor_data)| SearchAppointItem {
             did: doctor_data.did,
             doctor_name: doctor_data.name,
-            start_time: format!("{}", time_data.start_time.format(TIME_FMT)),
-            end_time: format!("{}", time_data.end_time.format(TIME_FMT)),
+            start_time: format!("{}", time_data.start_time.format(crate::utils::TIME_FMT)),
+            end_time: format!("{}", time_data.end_time.format(crate::utils::TIME_FMT)),
             status: appo_data.status,
-            time: format!("{}", appo_data.time.unwrap().format(TIME_FMT)),
+            time: format!("{}", appo_data.time.unwrap().format(crate::utils::TIME_FMT)),
         })
         .collect();
 

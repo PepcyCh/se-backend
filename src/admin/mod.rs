@@ -18,7 +18,7 @@ use crate::{
 use actix_web::{post, web, HttpResponse, Responder};
 use anyhow::{bail, Context};
 use blake2::{Blake2b, Digest};
-use chrono::{Datelike, NaiveDate, NaiveDateTime, Utc};
+use chrono::{Datelike, NaiveDate, Utc};
 use diesel::prelude::*;
 
 use self::{requests::*, responses::*, utils::get_aid_from_token};
@@ -408,21 +408,12 @@ async fn search_comment_impl(
     info: web::Json<SearchCommentRequest>,
 ) -> anyhow::Result<SearchCommentResponse> {
     use crate::schema::comments;
-    const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S";
 
     let info = info.into_inner();
     get_aid_from_token(info.login_token, &pool).await?;
 
-    let time_min =
-        NaiveDateTime::parse_from_str("1901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
-    let time_max =
-        NaiveDateTime::parse_from_str("2901-1-1T00:00:00", TIME_FMT).context("未知错误")?;
-    let start_time = info.start_time.map_or(Ok(time_min.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("起始时间格式错误")
-    })?;
-    let end_time = info.end_time.map_or(Ok(time_max.clone()), |t| {
-        NaiveDateTime::parse_from_str(t.as_str(), TIME_FMT).context("结束时间格式错误")
-    })?;
+    let (start_time, end_time) =
+        crate::utils::parse_time_pair_str_opt(info.start_time, info.end_time)?;
 
     let conn = get_db_conn(&pool)?;
     let did = info.did;
@@ -446,7 +437,7 @@ async fn search_comment_impl(
             cid: data.cid,
             username: data.username,
             comment: data.comment,
-            time: format!("{}", data.time.unwrap().format(TIME_FMT)),
+            time: format!("{}", data.time.unwrap().format(crate::utils::TIME_FMT)),
         })
         .collect();
 
