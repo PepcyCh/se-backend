@@ -24,6 +24,11 @@ pub struct LogoutRequest {
 }
 
 #[derive(Deserialize)]
+pub struct ViewInfoRequest {
+    pub login_token: String,
+}
+
+#[derive(Deserialize)]
 pub struct ModifyPasswordRequest {
     pub login_token: String,
     pub password_old: String,

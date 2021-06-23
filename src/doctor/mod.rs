@@ -2,19 +2,7 @@ mod requests;
 mod responses;
 mod utils;
 
-use crate::{
-    database::{assert, get_db_conn},
-    models::{
-        appointments::{Appointment, APPOINT_STATUS_FINISHED, APPOINT_STATUS_UNFINISHED},
-        comments::Comment,
-        doctor_logins::DoctorLoginData,
-        doctors::UpdateDoctor,
-        times::{NewTime, TimeData, UpdateTime},
-        users::UserData,
-    },
-    protocol::SimpleResponse,
-    DbPool,
-};
+use crate::{DbPool, database::{assert, get_db_conn}, models::{appointments::{Appointment, APPOINT_STATUS_FINISHED, APPOINT_STATUS_UNFINISHED}, comments::Comment, doctor_logins::DoctorLoginData, doctors::{DoctorData, UpdateDoctor}, times::{NewTime, TimeData, UpdateTime}, users::UserData}, protocol::SimpleResponse};
 use actix_web::{post, web, HttpResponse, Responder};
 use anyhow::{bail, Context};
 use blake2::{Blake2b, Digest};
@@ -26,6 +14,7 @@ use self::{requests::*, responses::*, utils::get_did_from_token};
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(login)
         .service(logout)
+        .service(view_info)
         .service(modify_password)
         .service(modify_info)
         .service(add_time)
@@ -40,6 +29,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 crate::post_funcs! {
     (login, "/login", LoginRequest, LoginResponse),
     (logout, "/logout", LogoutRequest, SimpleResponse),
+    (view_info, "/view_info", ViewInfoRequest, ViewInfoResponse),
     (modify_password, "/modify_password", ModifyPasswordRequest, SimpleResponse),
     (modify_info, "/modify_info", ModifyInfoRequest, SimpleResponse),
     (add_time, "/add_time", AddTimeRequest, SimpleResponse),
@@ -113,6 +103,33 @@ async fn logout_impl(
     .context("数据库错误")?;
 
     Ok(SimpleResponse::ok())
+}
+
+async fn view_info_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<ViewInfoRequest>,
+) -> anyhow::Result<ViewInfoResponse> {
+    use crate::schema::doctors;
+
+    let info = info.into_inner();
+    let did = get_did_from_token(info.login_token, &pool).await?;
+
+    let conn = get_db_conn(&pool)?;
+    let res = doctors::table
+        .filter(doctors::did.eq(&did))
+        .get_result::<DoctorData>(&conn)
+        .context("数据库错误")?;
+        
+    let data = ViewInfoResponse {
+        success: true,
+        err: "".to_string(),
+        did: res.did,
+        name: res.name,
+        birthday: format!("{}", res.birthday.unwrap_or(NaiveDate::from_ymd(1970, 1, 1))),
+        gender: res.gender,
+        info: res.information,
+    };
+    Ok(data)
 }
 
 async fn modify_password_impl(

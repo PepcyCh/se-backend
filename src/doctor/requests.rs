@@ -12,6 +12,11 @@ pub struct LogoutRequest {
 }
 
 #[derive(Deserialize)]
+pub struct ViewInfoRequest {
+    pub login_token: String,
+}
+
+#[derive(Deserialize)]
 pub struct AddTimeRequest {
     pub login_token: String,
     pub start_time: String,

@@ -8,6 +8,17 @@ pub struct LoginResponse {
 }
 
 #[derive(Default, Serialize)]
+pub struct ViewInfoResponse {
+    pub success: bool,
+    pub err: String,
+    pub username: String,
+    pub name: String,
+    pub gender: String,
+    pub birthday: String,
+    pub telephone: String,
+}
+
+#[derive(Default, Serialize)]
 pub struct SearchDepartItem {
     pub name: String,
     pub info: String,
@@ -88,6 +99,7 @@ pub struct SearchAppointResponse {
 
 crate::impl_err_response! {
     LoginResponse,
+    ViewInfoResponse,
     SearchDepartResponse,
     SearchDoctorResponse,
     SearchCommentResponse,

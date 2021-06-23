@@ -32,6 +32,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(register)
         .service(login)
         .service(logout)
+        .service(view_info)
         .service(modify_password)
         .service(modify_info)
         .service(appoint)
@@ -49,6 +50,7 @@ crate::post_funcs! {
     (register, "/register", RegisterRequest, SimpleResponse),
     (login, "/login", LoginRequest, LoginResponse),
     (logout, "/logout", LogoutRequest, SimpleResponse),
+    (view_info, "/view_info", ViewInfoRequest, ViewInfoResponse),
     (modify_password, "/modify_password", ModifyPasswordRequest, SimpleResponse),
     (modify_info, "/modify_info", ModifyInfoRequest, SimpleResponse),
     (appoint, "/appoint", AppointRequest, SimpleResponse),
@@ -176,6 +178,34 @@ async fn logout_impl(
     .context("数据库错误")?;
 
     Ok(SimpleResponse::ok())
+}
+
+async fn view_info_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<ViewInfoRequest>,
+) -> anyhow::Result<ViewInfoResponse> {
+    use crate::schema::users;
+
+    let info = info.into_inner();
+    let username = get_username_from_token(info.login_token, &pool).await?;
+    assert::assert_user(&pool, username.clone(), true).await?;
+
+    let conn = get_db_conn(&pool)?;
+    let res = users::table
+        .filter(users::username.eq(&username))
+        .get_result::<UserData>(&conn)
+        .context("数据库错误")?;
+        
+    let data = ViewInfoResponse {
+        success: true,
+        err: "".to_string(),
+        username: res.username,
+        name: res.name,
+        birthday: format!("{}", res.birthday.unwrap_or(NaiveDate::from_ymd(1970, 1, 1))),
+        gender: res.gender,
+        telephone: res.telephone,
+    };
+    Ok(data)
 }
 
 async fn modify_password_impl(
