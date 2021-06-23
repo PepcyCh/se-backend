@@ -18,7 +18,7 @@ table! {
         username -> Char,
         tid -> Unsigned<Bigint>,
         status -> Char,
-        time -> Nullable<Datetime>,
+        time -> Datetime,
     }
 }
 
@@ -28,7 +28,7 @@ table! {
         username -> Char,
         did -> Char,
         comment -> Varchar,
-        time -> Nullable<Datetime>,
+        time -> Datetime,
     }
 }
 

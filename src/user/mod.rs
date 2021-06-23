@@ -591,7 +591,7 @@ async fn search_comment_impl(
             cid: data.cid,
             username: data.username,
             comment: data.comment,
-            time: format!("{}", data.time.unwrap().format(crate::utils::TIME_FMT)),
+            time: crate::utils::format_time_str(&data.time),
         })
         .collect();
 
@@ -638,8 +638,8 @@ async fn search_time_impl(
         .into_iter()
         .map(|data| SearchTimeItem {
             tid: data.tid,
-            start_time: format!("{}", data.start_time.format(crate::utils::TIME_FMT)),
-            end_time: format!("{}", data.end_time.format(crate::utils::TIME_FMT)),
+            start_time: crate::utils::format_time_str(&data.start_time),
+            end_time: crate::utils::format_time_str(&data.end_time),
             capacity: data.capacity,
             rest: data.capacity - data.appointed,
         })
@@ -690,10 +690,10 @@ async fn search_appoint_impl(
         .map(|(appo_data, time_data, doctor_data)| SearchAppointItem {
             did: doctor_data.did,
             doctor_name: doctor_data.name,
-            start_time: format!("{}", time_data.start_time.format(crate::utils::TIME_FMT)),
-            end_time: format!("{}", time_data.end_time.format(crate::utils::TIME_FMT)),
+            start_time: crate::utils::format_time_str(&time_data.start_time),
+            end_time: crate::utils::format_time_str(&time_data.end_time),
             status: appo_data.status,
-            time: format!("{}", appo_data.time.unwrap().format(crate::utils::TIME_FMT)),
+            time: crate::utils::format_time_str(&appo_data.time),
         })
         .collect();
 

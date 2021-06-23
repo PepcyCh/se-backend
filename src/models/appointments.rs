@@ -6,7 +6,7 @@ pub struct Appointment {
     pub username: String,
     pub tid: u64,
     pub status: String,
-    pub time: Option<NaiveDateTime>,
+    pub time: NaiveDateTime,
 }
 
 #[derive(Insertable)]

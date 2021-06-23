@@ -437,7 +437,7 @@ async fn search_comment_impl(
             cid: data.cid,
             username: data.username,
             comment: data.comment,
-            time: format!("{}", data.time.unwrap().format(crate::utils::TIME_FMT)),
+            time: crate::utils::format_time_str(&data.time),
         })
         .collect();
 

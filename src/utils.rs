@@ -22,9 +22,8 @@ macro_rules! post_funcs {
 use anyhow::Context;
 use chrono::{DateTime, NaiveDateTime};
 
-pub const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S%.f%:z";
-
 pub fn parse_time_str<S: AsRef<str>>(s: S) -> anyhow::Result<NaiveDateTime> {
+    const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S%.f%:z";
     const TIME_FMT_SPECIAL: &str = "%Y-%m-%dT%H:%M:%S%.fZ";
 
     let s = s.as_ref();
@@ -59,4 +58,10 @@ pub fn parse_time_pair_str<S1: AsRef<str>, S2: AsRef<str>>(
     let start_time = parse_time_str(start_time).context("起始时间格式错误")?;
     let end_time = parse_time_str(end_time).context("结束时间格式错误")?;
     Ok((start_time, end_time))
+}
+
+pub fn format_time_str(time: &NaiveDateTime) -> String {
+    const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S%.f";
+
+    format!("{}+00:00", time.format(TIME_FMT))
 }
