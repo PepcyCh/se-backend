@@ -472,7 +472,7 @@ async fn search_depart_impl(
     assert::assert_user(&pool, username, true).await?;
 
     let conn = get_db_conn(&pool)?;
-    let name_pattern = format!("%{}%", info.depart_name);
+    let name_pattern = crate::utils::get_str_pattern_opt(info.depart_name);
     let first_index = info.first_index.unwrap_or(0).max(0);
     let limit = info.limit.unwrap_or(10).max(0);
     let departs = web::block(move || {
@@ -512,13 +512,9 @@ async fn search_doctor_impl(
     assert::assert_user(&pool, username, true).await?;
 
     let conn = get_db_conn(&pool)?;
-    let depart_name_pattern = info
-        .depart_name
-        .map_or("%".to_string(), |s| format!("%{}%", s));
-    let doctor_name_pattern = info
-        .doctor_name
-        .map_or("%".to_string(), |s| format!("%{}%", s));
-    let rank = info.rank.unwrap_or("%".to_string());
+    let depart_name_pattern = crate::utils::get_str_pattern_opt(info.depart_name);
+    let doctor_name_pattern = crate::utils::get_str_pattern_opt(info.doctor_name);
+    let rank = crate::utils::get_str_pattern_opt(info.rank);
     let first_index = info.first_index.unwrap_or(0).max(0);
     let limit = info.limit.unwrap_or(10).max(0);
     let docs = web::block(move || {

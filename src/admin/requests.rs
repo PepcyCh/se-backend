@@ -67,7 +67,7 @@ pub struct AddDepartRequst {
 #[derive(Deserialize)]
 pub struct SearchDepartRequest {
     pub login_token: String,
-    pub depart_name: String,
+    pub depart_name: Option<String>,
     pub first_index: Option<i64>,
     pub limit: Option<i64>,
 }

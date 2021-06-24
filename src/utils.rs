@@ -65,3 +65,14 @@ pub fn format_time_str(time: &NaiveDateTime) -> String {
 
     format!("{}+00:00", time.format(TIME_FMT))
 }
+
+pub fn get_str_pattern<S: AsRef<str>>(s: S) -> String {
+    format!("%{}%", s.as_ref())
+}
+
+pub fn get_str_pattern_opt<S: AsRef<str>>(s: Option<S>) -> String {
+    match s {
+        Some(s) => get_str_pattern(s),
+        None => "%".to_string(),
+    }
+}
