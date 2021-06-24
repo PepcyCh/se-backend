@@ -50,7 +50,7 @@ crate::post_funcs! {
     (search_time, "/search_time", SearchTimeRequest, SearchTimeResponse),
     (search_appoint, "/search_appoint", SearchAppointRequest, SearchAppointResponse),
     (finish_appoint, "/finish_appoint", FinishAppointRequest, SimpleResponse),
-    (search_comment, "/search_comments", SearchCommentRequest, SearchCommentResponse),
+    (search_comment, "/search_comment", SearchCommentRequest, SearchCommentResponse),
 }
 
 async fn login_impl(

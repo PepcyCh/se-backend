@@ -31,6 +31,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(search_doctor)
         .service(modify_doctor)
         .service(add_depart)
+        .service(search_depart)
         .service(modify_depart)
         .service(search_comment)
         .service(delete_comment)
@@ -47,6 +48,7 @@ crate::post_funcs! {
     (search_doctor, "/search_doctor", SearchDoctorRequest, SearchDoctorResponse),
     (modify_doctor, "/modify_doctor", ModifyDoctorRequest, SimpleResponse),
     (add_depart, "/add_depart", AddDepartRequst, SimpleResponse),
+    (search_depart, "/search_depart", SearchDepartRequest, SearchDepartResponse),
     (modify_depart, "/modify_depart", ModifyDepartRequest, SimpleResponse),
     (search_comment, "/search_comment", SearchCommentRequest, SearchCommentResponse),
     (delete_comment, "/delete_comment", DeleteCommentRequest, SimpleResponse),
@@ -215,7 +217,7 @@ async fn add_doctor_impl(
                 .get_result::<i64>(&conn)
                 .context("数据库错误")?;
             if res > 0 {
-                bail!("duplicated ID");
+                bail!("ID 重复");
             }
 
             // TODO - gender check
@@ -376,6 +378,45 @@ async fn add_depart_impl(
     .await?;
 
     Ok(SimpleResponse::ok())
+}
+
+async fn search_depart_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<SearchDepartRequest>,
+) -> anyhow::Result<SearchDepartResponse> {
+    use crate::schema::departments;
+
+    let info = info.into_inner();
+    get_aid_from_token(info.login_token, &pool).await?;
+
+    let conn = get_db_conn(&pool)?;
+    let name_pattern = format!("%{}%", info.depart_name);
+    let first_index = info.first_index.unwrap_or(0).max(0);
+    let limit = info.limit.unwrap_or(10).max(0);
+    let departs = web::block(move || {
+        departments::table
+            .filter(departments::depart_name.like(name_pattern))
+            .order(departments::depart_name.asc())
+            .offset(first_index)
+            .limit(limit)
+            .get_results::<DepartData>(&conn)
+    })
+    .await
+    .context("数据库错误")?;
+
+    let departs = departs
+        .into_iter()
+        .map(|data| SearchDepartItem {
+            name: data.depart_name,
+            info: data.information,
+        })
+        .collect();
+
+    Ok(SearchDepartResponse {
+        success: true,
+        err: "".to_string(),
+        departments: departs,
+    })
 }
 
 async fn modify_depart_impl(
