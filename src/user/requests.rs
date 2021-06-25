@@ -71,7 +71,7 @@ pub struct DeleteCommentRequest {
 
 #[derive(Deserialize)]
 pub struct SearchDepartRequest {
-    pub login_token: String,
+    // pub login_token: String,
     pub depart_name: Option<String>,
     pub first_index: Option<i64>,
     pub limit: Option<i64>,
@@ -79,7 +79,7 @@ pub struct SearchDepartRequest {
 
 #[derive(Deserialize)]
 pub struct SearchDoctorRequest {
-    pub login_token: String,
+    // pub login_token: String,
     pub depart_name: Option<String>,
     pub doctor_name: Option<String>,
     pub rank: Option<String>,
@@ -89,7 +89,7 @@ pub struct SearchDoctorRequest {
 
 #[derive(Deserialize)]
 pub struct SearchCommentRequest {
-    pub login_token: String,
+    // pub login_token: String,
     pub did: String,
     pub start_time: Option<String>,
     pub end_time: Option<String>,
@@ -99,7 +99,7 @@ pub struct SearchCommentRequest {
 
 #[derive(Deserialize)]
 pub struct SearchTimeRequest {
-    pub login_token: String,
+    // pub login_token: String,
     pub did: String,
     pub start_time: Option<String>,
     pub end_time: Option<String>,
