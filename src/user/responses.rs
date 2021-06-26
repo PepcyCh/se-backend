@@ -89,10 +89,10 @@ pub struct SearchAppointItem {
     pub did: String,
     pub doctor_name: String,
     pub doctor_depart: String,
-    pub start_time: String,
-    pub end_time: String,
-    pub status: String,
+    pub date: String,
     pub time: String,
+    pub status: String,
+    pub appo_time: String,
 }
 
 #[derive(Default, Serialize)]

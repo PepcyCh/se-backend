@@ -446,10 +446,10 @@ async fn search_appoint_impl(
                 .birthday
                 .map_or(-1, |birth| Utc::now().year() - birth.year()),
             tid: time_data.tid,
-            start_time: crate::utils::format_time_str(&time_data.start_time),
-            end_time: crate::utils::format_time_str(&time_data.end_time),
+            date: time_data.start_time.date().format("%Y-%m-%d").to_string(),
+            time: crate::utils::get_time_str(&time_data.start_time, &time_data.end_time).to_owned(),
             status: appo_data.status,
-            time: crate::utils::format_time_str(&appo_data.time),
+            appo_time: crate::utils::format_time_str(&appo_data.time),
         })
         .collect();
 

@@ -40,10 +40,10 @@ pub struct SearchAppointItem {
     pub name: String,
     pub age: i32,
     pub tid: u64,
-    pub start_time: String,
-    pub end_time: String,
-    pub status: String,
+    pub date: String,
     pub time: String,
+    pub status: String,
+    pub appo_time: String,
 }
 
 #[derive(Default, Serialize)]
