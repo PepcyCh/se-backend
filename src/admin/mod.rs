@@ -220,7 +220,7 @@ async fn add_doctor_impl(
                 bail!("ID 重复");
             }
 
-            // TODO - gender check
+            crate::utils::assert_gender_str(&info.gender)?;
 
             let birthday = match NaiveDate::parse_from_str(&info.birthday, "%Y-%m-%d") {
                 Ok(date) => Some(date),

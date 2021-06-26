@@ -4,6 +4,7 @@ CREATE TABLE users (
     name CHAR(32) NOT NULL,
     gender CHAR(10) NOT NULL,
     birthday DATE,
+    id_number CHAR(20) NOT NULL,
     telephone CHAR(16) NOT NULL,
     is_banned BOOL NOT NULL,
     PRIMARY KEY (username)

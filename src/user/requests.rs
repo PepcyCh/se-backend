@@ -7,6 +7,8 @@ pub struct RegisterRequest {
     pub password: String,
     pub gender: String,
     #[serde(default)]
+    pub id_number: String,
+    #[serde(default)]
     pub birthday: String,
     #[serde(default)]
     pub telephone: String,
@@ -40,6 +42,7 @@ pub struct ModifyInfoRequest {
     pub login_token: String,
     pub name: Option<String>,
     pub gender: Option<String>,
+    pub id_number: Option<String>,
     pub birthday: Option<String>,
     pub telephone: Option<String>,
 }

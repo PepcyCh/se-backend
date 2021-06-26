@@ -84,7 +84,7 @@ async fn register_impl(
                 bail!("用户名重复");
             }
 
-            // TODO - gender check
+            crate::utils::assert_gender_str(&info.gender)?;
 
             let birthday = match NaiveDate::parse_from_str(&info.birthday, "%Y-%m-%d") {
                 Ok(date) => Some(date),
@@ -97,6 +97,7 @@ async fn register_impl(
                 password: hashed_password,
                 name: info.name,
                 gender: info.gender,
+                id_number: info.id_number,
                 birthday,
                 telephone: info.telephone,
                 is_banned: false,
@@ -206,6 +207,7 @@ async fn view_info_impl(
             res.birthday.unwrap_or(NaiveDate::from_ymd(1970, 1, 1))
         ),
         gender: res.gender,
+        id_number: res.id_number,
         telephone: res.telephone,
     };
     Ok(data)
@@ -264,6 +266,7 @@ async fn modify_info_impl(
     let mut data = UpdateUser {
         name: info.name,
         gender: info.gender,
+        id_number: info.id_number,
         telephone: info.telephone,
         ..Default::default()
     };

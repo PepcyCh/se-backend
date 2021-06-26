@@ -86,6 +86,7 @@ table! {
         name -> Char,
         gender -> Char,
         birthday -> Nullable<Date>,
+        id_number -> Char,
         telephone -> Char,
         is_banned -> Bool,
     }

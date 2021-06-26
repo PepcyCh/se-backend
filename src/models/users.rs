@@ -10,6 +10,7 @@ pub struct UserData {
     pub name: String,
     pub gender: String,
     pub birthday: Option<NaiveDate>,
+    pub id_number: String,
     pub telephone: String,
     pub is_banned: bool,
 }
@@ -19,6 +20,7 @@ pub struct UserData {
 pub struct UpdateUser {
     pub name: Option<String>,
     pub gender: Option<String>,
+    pub id_number: Option<String>,
     pub birthday: Option<NaiveDate>,
     pub telephone: Option<String>,
 }

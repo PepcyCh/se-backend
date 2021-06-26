@@ -19,8 +19,15 @@ macro_rules! post_funcs {
     };
 }
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use chrono::{DateTime, NaiveDateTime, NaiveTime};
+
+pub fn assert_gender_str(gender: &str) -> anyhow::Result<()> {
+    if gender != "男" && gender != "女" {
+        bail!("性别格式错误")
+    }
+    Ok(())
+}
 
 pub fn parse_time_str<S: AsRef<str>>(s: S) -> anyhow::Result<NaiveDateTime> {
     const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S%.f%:z";
