@@ -89,6 +89,7 @@ pub struct SearchAppointItem {
     pub did: String,
     pub doctor_name: String,
     pub doctor_depart: String,
+    pub tid: u64,
     pub date: String,
     pub time: String,
     pub status: String,

@@ -692,6 +692,7 @@ async fn search_appoint_impl(
             did: doctor_data.did,
             doctor_name: doctor_data.name,
             doctor_depart: doctor_data.department,
+            tid: time_data.tid,
             date: time_data.start_time.date().format("%Y-%m-%d").to_string(),
             time: crate::utils::get_time_str(&time_data.start_time, &time_data.end_time).to_owned(),
             status: appo_data.status,
