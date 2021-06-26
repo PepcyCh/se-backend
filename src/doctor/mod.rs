@@ -227,11 +227,10 @@ async fn add_time_impl(
     let info = info.into_inner();
     let did = get_did_from_token(info.login_token.clone(), &pool).await?;
 
-    let (start_time, end_time) =
-        crate::utils::parse_time_pair_str(&info.start_time, &info.end_time)?;
-    if start_time >= end_time {
-        bail!("非法的时间区间");
-    }
+    let (start_time, end_time) = crate::utils::get_time_from_str(&info.date, &info.time)?;
+    // if start_time >= end_time {
+    //     bail!("非法的时间区间");
+    // }
 
     let conn = get_db_conn(&pool)?;
     web::block(move || {
@@ -287,9 +286,9 @@ async fn modify_time_impl(
                 .get_result::<TimeData>(&conn)
                 .context("数据库错误")?;
 
-            if time_data.appointed > 0 && (info.start_time.is_some() || info.end_time.is_some()) {
-                bail!("不能在已有用户预约的情况下修改时间")
-            }
+            // if time_data.appointed > 0 && (info.start_time.is_some() || info.end_time.is_some()) {
+            //     bail!("不能在已有用户预约的情况下修改时间")
+            // }
 
             let mut data = UpdateTime::default();
             if let Some(cap) = info.capacity {
@@ -303,16 +302,16 @@ async fn modify_time_impl(
                 }
             }
 
-            if let Some(start_time) = info.start_time {
-                let start_time =
-                    crate::utils::parse_time_str(&start_time).context("起始时间格式错误")?;
-                data.start_time = Some(start_time);
-            }
-            if let Some(end_time) = info.end_time {
-                let end_time =
-                    crate::utils::parse_time_str(&end_time).context("结束时间格式错误")?;
-                data.end_time = Some(end_time);
-            }
+            // if let Some(start_time) = info.start_time {
+            //     let start_time =
+            //         crate::utils::parse_time_str(&start_time).context("起始时间格式错误")?;
+            //     data.start_time = Some(start_time);
+            // }
+            // if let Some(end_time) = info.end_time {
+            //     let end_time =
+            //         crate::utils::parse_time_str(&end_time).context("结束时间格式错误")?;
+            //     data.end_time = Some(end_time);
+            // }
 
             diesel::update(times::table.filter(times::tid.eq(info.tid)))
                 .set(&data)
@@ -370,12 +369,11 @@ async fn search_time_impl(
     let info = info.into_inner();
     let did = get_did_from_token(info.login_token, &pool).await?;
 
-    let (start_time, end_time) =
-        crate::utils::parse_time_pair_str_opt(info.start_time, info.end_time)?;
+    let (start_time, end_time) = crate::utils::get_time_pair_from_date_opt(info.date)?;
 
     let conn = get_db_conn(&pool)?;
     let first_index = info.first_index.unwrap_or(0).max(0);
-    let limit = info.limit.unwrap_or(10).max(0);
+    let limit = info.limit.unwrap_or(30).max(0);
     let tms = web::block(move || {
         times::table
             .filter(times::did.eq(&did))
@@ -421,7 +419,7 @@ async fn search_appoint_impl(
 
     let conn = get_db_conn(&pool)?;
     let first_index = info.first_index.unwrap_or(0).max(0);
-    let limit = info.limit.unwrap_or(10).max(0);
+    let limit = info.limit.unwrap_or(30).max(0);
     let status = info.status;
     let appos = web::block(move || {
         times::table
@@ -532,7 +530,7 @@ async fn search_comment_impl(
 
     let conn = get_db_conn(&pool)?;
     let first_index = info.first_index.unwrap_or(0).max(0);
-    let limit = info.limit.unwrap_or(10).max(0);
+    let limit = info.limit.unwrap_or(30).max(0);
     let cmts = web::block(move || {
         comments::table
             .filter(comments::did.eq(&did))

@@ -474,7 +474,7 @@ async fn search_depart_impl(
     let conn = get_db_conn(&pool)?;
     let name_pattern = crate::utils::get_str_pattern_opt(info.depart_name);
     let first_index = info.first_index.unwrap_or(0).max(0);
-    let limit = info.limit.unwrap_or(10).max(0);
+    let limit = info.limit.unwrap_or(30).max(0);
     let departs = web::block(move || {
         departments::table
             .filter(departments::depart_name.like(name_pattern))
@@ -516,7 +516,7 @@ async fn search_doctor_impl(
     let doctor_name_pattern = crate::utils::get_str_pattern_opt(info.doctor_name);
     let rank = crate::utils::get_str_pattern_opt(info.rank);
     let first_index = info.first_index.unwrap_or(0).max(0);
-    let limit = info.limit.unwrap_or(10).max(0);
+    let limit = info.limit.unwrap_or(30).max(0);
     let docs = web::block(move || {
         doctors::table
             .filter(doctors::department.like(depart_name_pattern))
@@ -568,7 +568,7 @@ async fn search_comment_impl(
 
     let conn = get_db_conn(&pool)?;
     let first_index = info.first_index.unwrap_or(0).max(0);
-    let limit = info.limit.unwrap_or(10).max(0);
+    let limit = info.limit.unwrap_or(30).max(0);
     let cmts = web::block(move || {
         comments::table
             .filter(comments::did.eq(did))
@@ -608,19 +608,13 @@ async fn search_time_impl(
     // let username = get_username_from_token(info.login_token, &pool).await?;
     // assert::assert_user(&pool, username, true).await?;
 
-    let (start_time, end_time) = if let Some(date) = info.date {
-        let start_time_str = format!("{}T00:00:00+00:00", date);
-        let end_time_str = format!("{}T23:59:59+00:00", date);
-        crate::utils::parse_time_pair_str(start_time_str, end_time_str).context("日期格式错误")?
-    } else {
-        crate::utils::parse_time_pair_str_opt::<String, String>(None, None)?
-    };
+    let (start_time, end_time) = crate::utils::get_time_pair_from_date_opt(info.date)?;
 
     let doctor_name_pattern = crate::utils::get_str_pattern_opt(info.doctor_name);
 
     let conn = get_db_conn(&pool)?;
     let first_index = info.first_index.unwrap_or(0).max(0);
-    let limit = info.limit.unwrap_or(10).max(0);
+    let limit = info.limit.unwrap_or(30).max(0);
     let tms = web::block(move || {
         times::table
             .filter(times::start_time.ge(&start_time))
@@ -670,7 +664,7 @@ async fn search_appoint_impl(
 
     let conn = get_db_conn(&pool)?;
     let first_index = info.first_index.unwrap_or(0).max(0);
-    let limit = info.limit.unwrap_or(10).max(0);
+    let limit = info.limit.unwrap_or(30).max(0);
     let status = info.status;
     let appos = web::block(move || {
         appointments::table

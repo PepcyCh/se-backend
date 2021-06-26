@@ -60,6 +60,18 @@ pub fn parse_time_pair_str<S1: AsRef<str>, S2: AsRef<str>>(
     Ok((start_time, end_time))
 }
 
+pub fn get_time_pair_from_date_opt<S: AsRef<str>>(
+    date: Option<S>,
+) -> anyhow::Result<(NaiveDateTime, NaiveDateTime)> {
+    if let Some(date) = date {
+        let start_time_str = format!("{}T00:00:00+00:00", date.as_ref());
+        let end_time_str = format!("{}T23:59:59+00:00", date.as_ref());
+        crate::utils::parse_time_pair_str(start_time_str, end_time_str).context("日期格式错误")
+    } else {
+        crate::utils::parse_time_pair_str_opt::<String, String>(None, None)
+    }
+}
+
 pub fn format_time_str(time: &NaiveDateTime) -> String {
     const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S%.f";
 
@@ -74,6 +86,22 @@ pub fn get_str_pattern_opt<S: AsRef<str>>(s: Option<S>) -> String {
     match s {
         Some(s) => get_str_pattern(s),
         None => "%".to_string(),
+    }
+}
+
+pub fn get_time_from_str(date: &str, time: &str) -> anyhow::Result<(NaiveDateTime, NaiveDateTime)> {
+    match time {
+        crate::models::times::TIME_AM => {
+            let start_time_str = format!("{}T09:00:00+00:00", date);
+            let end_time_str = format!("{}T11:00:00+00:00", date);
+            crate::utils::parse_time_pair_str(start_time_str, end_time_str).context("日期格式错误")
+        }
+        crate::models::times::TIME_PM => {
+            let start_time_str = format!("{}T15:00:00+00:00", date);
+            let end_time_str = format!("{}T17:00:00+00:00", date);
+            crate::utils::parse_time_pair_str(start_time_str, end_time_str).context("日期格式错误")
+        }
+        _ => Err(anyhow::anyhow!("时间格式错误")),
     }
 }
 

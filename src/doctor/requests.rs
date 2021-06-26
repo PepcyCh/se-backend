@@ -19,8 +19,8 @@ pub struct ViewInfoRequest {
 #[derive(Deserialize)]
 pub struct AddTimeRequest {
     pub login_token: String,
-    pub start_time: String,
-    pub end_time: String,
+    pub date: String,
+    pub time: String,
     pub capacity: i32,
 }
 
@@ -44,8 +44,6 @@ pub struct ModifyInfoRequest {
 pub struct ModifyTimeRequest {
     pub login_token: String,
     pub tid: u64,
-    pub start_time: Option<String>,
-    pub end_time: Option<String>,
     pub capacity: Option<i32>,
 }
 
@@ -58,8 +56,7 @@ pub struct DeleteTimeRequest {
 #[derive(Deserialize)]
 pub struct SearchTimeRequest {
     pub login_token: String,
-    pub start_time: Option<String>,
-    pub end_time: Option<String>,
+    pub date: Option<String>,
     pub first_index: Option<i64>,
     pub limit: Option<i64>,
 }
