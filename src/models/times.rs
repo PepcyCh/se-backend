@@ -27,3 +27,6 @@ pub struct UpdateTime {
     pub end_time: Option<NaiveDateTime>,
     pub capacity: Option<i32>,
 }
+
+pub const TIME_AM: &str = "上午";
+pub const TIME_PM: &str = "下午";

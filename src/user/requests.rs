@@ -100,11 +100,8 @@ pub struct SearchCommentRequest {
 #[derive(Deserialize)]
 pub struct SearchTimeRequest {
     // pub login_token: String,
-    pub did: String,
-    pub start_time: Option<String>,
-    pub end_time: Option<String>,
-    #[serde(default)]
-    pub show_all: bool,
+    pub doctor_name: Option<String>,
+    pub date: Option<String>,
     pub first_index: Option<i64>,
     pub limit: Option<i64>,
 }

@@ -20,7 +20,7 @@ macro_rules! post_funcs {
 }
 
 use anyhow::Context;
-use chrono::{DateTime, NaiveDateTime};
+use chrono::{DateTime, NaiveDateTime, NaiveTime};
 
 pub fn parse_time_str<S: AsRef<str>>(s: S) -> anyhow::Result<NaiveDateTime> {
     const TIME_FMT: &str = "%Y-%m-%dT%H:%M:%S%.f%:z";
@@ -74,5 +74,13 @@ pub fn get_str_pattern_opt<S: AsRef<str>>(s: Option<S>) -> String {
     match s {
         Some(s) => get_str_pattern(s),
         None => "%".to_string(),
+    }
+}
+
+pub fn get_time_str(_start_time: &NaiveDateTime, end_time: &NaiveDateTime) -> &'static str {
+    if end_time.time() >= NaiveTime::from_hms(12, 0, 0) {
+        crate::models::times::TIME_PM
+    } else {
+        crate::models::times::TIME_AM
     }
 }

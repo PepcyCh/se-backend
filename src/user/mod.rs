@@ -602,42 +602,49 @@ async fn search_time_impl(
     pool: web::Data<DbPool>,
     info: web::Json<SearchTimeRequest>,
 ) -> anyhow::Result<SearchTimeResponse> {
-    use crate::schema::times;
+    use crate::schema::{doctors, times};
 
     let info = info.into_inner();
     // let username = get_username_from_token(info.login_token, &pool).await?;
     // assert::assert_user(&pool, username, true).await?;
 
-    let (start_time, end_time) =
-        crate::utils::parse_time_pair_str_opt(info.start_time, info.end_time)?;
-    let did = info.did;
+    let (start_time, end_time) = if let Some(date) = info.date {
+        let start_time_str = format!("{}T00:00:00+00:00", date);
+        let end_time_str = format!("{}T23:59:59+00:00", date);
+        crate::utils::parse_time_pair_str(start_time_str, end_time_str).context("日期格式错误")?
+    } else {
+        crate::utils::parse_time_pair_str_opt::<String, String>(None, None)?
+    };
+
+    let doctor_name_pattern = crate::utils::get_str_pattern_opt(info.doctor_name);
 
     let conn = get_db_conn(&pool)?;
     let first_index = info.first_index.unwrap_or(0).max(0);
     let limit = info.limit.unwrap_or(10).max(0);
-    let show_all = info.show_all;
     let tms = web::block(move || {
         times::table
-            .filter(times::did.eq(&did))
             .filter(times::start_time.ge(&start_time))
             .filter(times::end_time.le(&end_time))
-            .filter((times::capacity.gt(times::appointed)).or(show_all))
+            .inner_join(doctors::table.on(times::did.eq(doctors::did)))
+            .filter(doctors::name.like(doctor_name_pattern))
             .order(times::start_time.asc())
             .offset(first_index)
             .limit(limit)
-            .get_results::<TimeData>(&conn)
+            .get_results::<(TimeData, DoctorData)>(&conn)
     })
     .await
     .context("数据库错误")?;
 
     let tms = tms
         .into_iter()
-        .map(|data| SearchTimeItem {
-            tid: data.tid,
-            start_time: crate::utils::format_time_str(&data.start_time),
-            end_time: crate::utils::format_time_str(&data.end_time),
-            capacity: data.capacity,
-            rest: data.capacity - data.appointed,
+        .map(|(time_data, doctor_data)| SearchTimeItem {
+            tid: time_data.tid,
+            time: crate::utils::get_time_str(&time_data.start_time, &time_data.end_time).to_owned(),
+            did: doctor_data.did,
+            doctor_name: doctor_data.name,
+            doctor_depart: doctor_data.department,
+            capacity: time_data.capacity,
+            rest: time_data.capacity - time_data.appointed,
         })
         .collect();
 
@@ -686,6 +693,7 @@ async fn search_appoint_impl(
         .map(|(appo_data, time_data, doctor_data)| SearchAppointItem {
             did: doctor_data.did,
             doctor_name: doctor_data.name,
+            doctor_depart: doctor_data.department,
             start_time: crate::utils::format_time_str(&time_data.start_time),
             end_time: crate::utils::format_time_str(&time_data.end_time),
             status: appo_data.status,
