@@ -633,6 +633,7 @@ async fn search_time_impl(
         .into_iter()
         .map(|(time_data, doctor_data)| SearchTimeItem {
             tid: time_data.tid,
+            date: time_data.start_time.date().format("%Y-%m-%d").to_string(),
             time: crate::utils::get_time_str(&time_data.start_time, &time_data.end_time).to_owned(),
             did: doctor_data.did,
             doctor_name: doctor_data.name,

@@ -391,8 +391,8 @@ async fn search_time_impl(
         .into_iter()
         .map(|data| SearchTimeItem {
             tid: data.tid,
-            start_time: crate::utils::format_time_str(&data.start_time),
-            end_time: crate::utils::format_time_str(&data.end_time),
+            date: data.start_time.date().format("%Y-%m-%d").to_string(),
+            time: crate::utils::get_time_str(&data.start_time, &data.end_time).to_owned(),
             capacity: data.capacity,
             rest: data.capacity - data.appointed,
         })

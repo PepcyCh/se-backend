@@ -21,8 +21,8 @@ pub struct ViewInfoResponse {
 #[derive(Default, Serialize)]
 pub struct SearchTimeItem {
     pub tid: u64,
-    pub start_time: String,
-    pub end_time: String,
+    pub date: String,
+    pub time: String,
     pub capacity: i32,
     pub rest: i32,
 }

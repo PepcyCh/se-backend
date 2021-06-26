@@ -67,6 +67,7 @@ pub struct SearchCommentResponse {
 #[derive(Default, Serialize)]
 pub struct SearchTimeItem {
     pub tid: u64,
+    pub date: String,
     pub time: String,
     pub did: String,
     pub doctor_name: String,
