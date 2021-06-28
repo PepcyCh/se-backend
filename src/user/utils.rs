@@ -12,7 +12,7 @@ pub async fn get_username_from_token(
     use crate::schema::user_logins;
     const MAX_LOGIN_TIME_SECS: i64 = 3600;
 
-    let conn = pool.get().context("DB connection error")?;
+    let conn = pool.get().context("数据库连接错误")?;
     let data = web::block(move || {
         user_logins::table
             .filter(user_logins::token.eq(token))
@@ -22,7 +22,7 @@ pub async fn get_username_from_token(
             .optional()
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     if let Some(data) = data {
         let time_diff = Utc::now()
@@ -31,9 +31,9 @@ pub async fn get_username_from_token(
         if time_diff.num_seconds() <= MAX_LOGIN_TIME_SECS {
             return Ok(data.username);
         } else {
-            bail!("Login has expired");
+            bail!("登录已过期");
         }
     } else {
-        bail!("No such login token");
+        bail!("您还未登录");
     }
 }

@@ -486,18 +486,18 @@ async fn finish_appoint_impl(
                 bail!("只能完成未完成的预约");
             }
 
-            let time_data = times::table
-                .filter(times::tid.eq(&appo_data[0].tid))
-                .get_result::<TimeData>(&conn)
-                .context("数据库错误")?;
-            let now = Utc::now().naive_utc();
-            if now
-                .signed_duration_since(time_data.start_time)
-                .num_seconds()
-                < 0
-            {
-                bail!("不能完成一个还在未来的预约");
-            }
+            // let time_data = times::table
+            //     .filter(times::tid.eq(&appo_data[0].tid))
+            //     .get_result::<TimeData>(&conn)
+            //     .context("数据库错误")?;
+            // let now = Utc::now().naive_utc();
+            // if now
+            //     .signed_duration_since(time_data.start_time)
+            //     .num_seconds()
+            //     < 0
+            // {
+            //     bail!("不能完成一个还在未来的预约");
+            // }
 
             diesel::update(
                 appointments::table
