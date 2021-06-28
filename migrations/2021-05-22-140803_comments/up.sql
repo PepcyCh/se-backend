@@ -4,5 +4,5 @@ CREATE TABLE comments (
     did CHAR(32) NOT NULL,
     comment VARCHAR(256) NOT NULL,
     time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (did)
+    PRIMARY KEY (cid)
 );

@@ -23,7 +23,7 @@ table! {
 }
 
 table! {
-    comments (did) {
+    comments (cid) {
         cid -> Unsigned<Bigint>,
         username -> Char,
         did -> Char,
