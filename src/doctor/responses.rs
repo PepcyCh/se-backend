@@ -16,6 +16,8 @@ pub struct ViewInfoResponse {
     pub birthday: String,
     pub gender: String,
     pub info: String,
+    pub depart: String,
+    pub depart_info: String,
 }
 
 #[derive(Default, Serialize)]

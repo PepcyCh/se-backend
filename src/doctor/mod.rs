@@ -7,6 +7,7 @@ use crate::{
     models::{
         appointments::{Appointment, APPOINT_STATUS_FINISHED, APPOINT_STATUS_UNFINISHED},
         comments::Comment,
+        departments::DepartData,
         doctor_logins::DoctorLoginData,
         doctors::{DoctorData, UpdateDoctor},
         times::{NewTime, TimeData, UpdateTime},
@@ -121,30 +122,39 @@ async fn view_info_impl(
     pool: web::Data<DbPool>,
     info: web::Json<ViewInfoRequest>,
 ) -> anyhow::Result<ViewInfoResponse> {
-    use crate::schema::doctors;
+    use crate::schema::{departments, doctors};
 
     let info = info.into_inner();
     let did = get_did_from_token(info.login_token, &pool).await?;
 
     let conn = get_db_conn(&pool)?;
-    let res = doctors::table
-        .filter(doctors::did.eq(&did))
-        .get_result::<DoctorData>(&conn)
-        .context("数据库错误")?;
+    let (doctor_data, depart_data) = web::block(move || {
+        doctors::table
+            .filter(doctors::did.eq(&did))
+            .inner_join(departments::table.on(doctors::department.eq(departments::depart_name)))
+            .get_result::<(DoctorData, DepartData)>(&conn)
+    })
+    .await
+    .context("数据库错误")?;
 
-    let data = ViewInfoResponse {
+    let res = ViewInfoResponse {
         success: true,
         err: "".to_string(),
-        did: res.did,
-        name: res.name,
+        did: doctor_data.did,
+        name: doctor_data.name,
         birthday: format!(
             "{}",
-            res.birthday.unwrap_or(NaiveDate::from_ymd(1970, 1, 1))
+            doctor_data
+                .birthday
+                .unwrap_or(NaiveDate::from_ymd(1970, 1, 1))
         ),
-        gender: res.gender,
-        info: res.information,
+        gender: doctor_data.gender,
+        info: doctor_data.information,
+        depart: doctor_data.department,
+        depart_info: depart_data.information,
     };
-    Ok(data)
+
+    Ok(res)
 }
 
 async fn modify_password_impl(
