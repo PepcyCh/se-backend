@@ -258,7 +258,7 @@ async fn search_doctor_impl(
     use crate::schema::doctors;
 
     let info = info.into_inner();
-    get_aid_from_token(info.login_token, &pool).await?;
+    // get_aid_from_token(info.login_token, &pool).await?;
 
     let conn = get_db_conn(&pool)?;
     let depart_name_pattern = crate::utils::get_str_pattern_opt(info.depart_name);
@@ -383,7 +383,7 @@ async fn search_depart_impl(
     use crate::schema::departments;
 
     let info = info.into_inner();
-    get_aid_from_token(info.login_token, &pool).await?;
+    // get_aid_from_token(info.login_token, &pool).await?;
 
     let conn = get_db_conn(&pool)?;
     let name_pattern = crate::utils::get_str_pattern_opt(info.depart_name);
@@ -447,7 +447,7 @@ async fn search_comment_impl(
     use crate::schema::comments;
 
     let info = info.into_inner();
-    get_aid_from_token(info.login_token, &pool).await?;
+    // get_aid_from_token(info.login_token, &pool).await?;
 
     let (start_time, end_time) =
         crate::utils::parse_time_pair_str_opt(info.start_time, info.end_time)?;

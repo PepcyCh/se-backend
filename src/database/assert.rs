@@ -18,14 +18,14 @@ pub async fn assert_user(
             .get_results::<UserData>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     if res.len() != 1 {
-        bail!("No such user");
+        bail!("用户不存在");
     }
 
     if check_ban && res[0].is_banned {
-        bail!("User is banned");
+        bail!("用户被封禁");
     }
 
     Ok(())
@@ -42,10 +42,10 @@ pub async fn assert_doctor(pool: &web::Data<DbPool>, did: String) -> anyhow::Res
             .get_result::<i64>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     if res == 0 {
-        bail!("No such doctor");
+        bail!("医生不存在");
     }
 
     Ok(())
@@ -62,10 +62,10 @@ pub async fn assert_admin(pool: &web::Data<DbPool>, aid: String) -> anyhow::Resu
             .get_result::<i64>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     if res == 0 {
-        bail!("No such administrator");
+        bail!("管理员不存在");
     }
 
     Ok(())
@@ -82,10 +82,10 @@ pub async fn assert_depart(pool: &web::Data<DbPool>, depart_name: String) -> any
             .get_result::<i64>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     if res == 0 {
-        bail!("No such department");
+        bail!("科室不存在");
     }
 
     Ok(())
@@ -102,10 +102,10 @@ pub async fn assert_comment(pool: &web::Data<DbPool>, cid: u64) -> anyhow::Resul
             .get_result::<i64>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     if res == 0 {
-        bail!("No such comment");
+        bail!("评论不存在");
     }
 
     Ok(())
@@ -122,10 +122,10 @@ pub async fn assert_time(pool: &web::Data<DbPool>, tid: u64) -> anyhow::Result<(
             .get_result::<i64>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     if res == 0 {
-        bail!("No such time");
+        bail!("时间段不存在");
     }
 
     Ok(())
@@ -148,10 +148,10 @@ pub async fn assert_appoint(
             .get_result::<i64>(&conn)
     })
     .await
-    .context("DB error")?;
+    .context("数据库错误")?;
 
     if res == 0 {
-        bail!("No such appointment");
+        bail!("预约不存在");
     }
 
     Ok(())

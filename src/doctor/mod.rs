@@ -474,7 +474,8 @@ async fn finish_appoint_impl(
     pool: web::Data<DbPool>,
     info: web::Json<FinishAppointRequest>,
 ) -> anyhow::Result<SimpleResponse> {
-    use crate::schema::{appointments, times};
+    // use crate::schema::{appointments, times};
+    use crate::schema::appointments;
 
     let info = info.into_inner();
     get_did_from_token(info.login_token, &pool).await?;
