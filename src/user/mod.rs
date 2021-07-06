@@ -140,7 +140,7 @@ async fn login_impl(
                 bail!("密码错误")
             }
 
-            let login_token = format!("{:x}", Blake2b::digest(info.username.as_bytes()));
+            let login_token = crate::utils::generate_login_token(&info.username, "user");
             let token_data = UserLoginData {
                 token: login_token.clone(),
                 username: info.username,

@@ -10,7 +10,7 @@ use crate::{
         comments::Comment,
         departments::DepartData,
         doctors::{DoctorData, UpdateDoctor},
-        users::UserData,
+        users::{UpdateUser, UserData},
     },
     protocol::SimpleResponse,
     DbPool,
@@ -37,7 +37,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(delete_comment)
         .service(search_user)
         .service(view_user)
-        .service(ban_user);
+        .service(ban_user)
+        .service(modify_user);
 }
 
 crate::post_funcs! {
@@ -56,6 +57,7 @@ crate::post_funcs! {
     (search_user, "/search_user", SearchUserRequest, SearchUserResponse),
     (view_user, "/view_user", ViewUserRequest, ViewUserResponse),
     (ban_user, "/ban_user", BanUserRequest, SimpleResponse),
+    (modify_user, "/modify_user", ModifyUserRequest, SimpleResponse),
 }
 
 async fn register_impl(
@@ -120,7 +122,7 @@ async fn login_impl(
                 bail!("密码错误");
             }
 
-            let login_token = format!("{:x}", Blake2b::digest(info.aid.to_string().as_bytes()));
+            let login_token = crate::utils::generate_login_token(&info.aid, "admin");
             let token_data = AdminLoginData {
                 token: login_token.clone(),
                 aid: info.aid,
@@ -579,9 +581,10 @@ async fn view_user_impl(
         err: "".to_string(),
         username: data.username,
         name: data.name,
-        age: data
-            .birthday
-            .map_or(-1, |birth| Utc::now().year() - birth.year()),
+        birthday: format!(
+            "{}",
+            data.birthday.unwrap_or(NaiveDate::from_ymd(1970, 1, 1))
+        ),
         gender: data.gender,
         telephone: data.telephone,
         is_banned: data.is_banned,
@@ -624,6 +627,41 @@ async fn ban_user_impl(
         })
     })
     .await?;
+
+    Ok(SimpleResponse::ok())
+}
+
+async fn modify_user_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<ModifyUserRequest>,
+) -> anyhow::Result<SimpleResponse> {
+    use crate::schema::users;
+
+    let info = info.into_inner();
+    get_aid_from_token(info.login_token, &pool).await?;
+    assert::assert_user(&pool, info.username.clone(), false).await?;
+
+    let mut data = UpdateUser {
+        name: info.name,
+        gender: info.gender,
+        id_number: info.id_number,
+        telephone: info.telephone,
+        ..Default::default()
+    };
+    if let Some(birthday) = info.birthday {
+        let birthday = NaiveDate::parse_from_str(&birthday, "%Y-%m-%d").context("生日格式错误")?;
+        data.birthday = Some(birthday);
+    }
+
+    let conn = get_db_conn(&pool)?;
+    let username = info.username;
+    web::block(move || {
+        diesel::update(users::table.filter(users::username.eq(username)))
+            .set(&data)
+            .execute(&conn)
+    })
+    .await
+    .context("数据库错误")?;
 
     Ok(SimpleResponse::ok())
 }

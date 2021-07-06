@@ -76,7 +76,7 @@ pub struct ViewUserResponse {
     pub err: String,
     pub username: String,
     pub name: String,
-    pub age: i32,
+    pub birthday: String,
     pub gender: String,
     pub telephone: String,
     pub is_banned: bool,

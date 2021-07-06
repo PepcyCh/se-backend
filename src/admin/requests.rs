@@ -114,3 +114,14 @@ pub struct BanUserRequest {
     pub username: String,
     pub is_banned: bool,
 }
+
+#[derive(Deserialize)]
+pub struct ModifyUserRequest {
+    pub login_token: String,
+    pub username: String,
+    pub name: Option<String>,
+    pub gender: Option<String>,
+    pub id_number: Option<String>,
+    pub birthday: Option<String>,
+    pub telephone: Option<String>,
+}

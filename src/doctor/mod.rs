@@ -77,7 +77,7 @@ async fn login_impl(
                 bail!("密码错误");
             }
 
-            let login_token = format!("{:x}", Blake2b::digest(info.did.to_string().as_bytes()));
+            let login_token = crate::utils::generate_login_token(&info.did, "doctor");
             let token_data = DoctorLoginData {
                 token: login_token.clone(),
                 did: info.did,

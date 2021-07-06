@@ -20,13 +20,19 @@ macro_rules! post_funcs {
 }
 
 use anyhow::{bail, Context};
-use chrono::{DateTime, NaiveDateTime, NaiveTime};
+use blake2::{Blake2b, Digest};
+use chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
 
 pub fn assert_gender_str(gender: &str) -> anyhow::Result<()> {
     if gender != "男" && gender != "女" {
         bail!("性别格式错误")
     }
     Ok(())
+}
+
+pub fn generate_login_token(id: &str, tag: &str) -> String {
+    let temp_str = format!("{}@{}@{}", id, tag, Utc::now());
+    format!("{:x}", Blake2b::digest(temp_str.as_bytes()))
 }
 
 pub fn parse_time_str<S: AsRef<str>>(s: S) -> anyhow::Result<NaiveDateTime> {
