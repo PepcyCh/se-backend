@@ -96,8 +96,15 @@ pub struct DeleteCommentRequest {
 }
 
 #[derive(Deserialize)]
+pub struct SearchUserRequest {
+    pub username: Option<String>,
+    pub first_index: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
 pub struct ViewUserRequest {
-    pub login_token: String,
+    // pub login_token: String,
     pub username: String,
 }
 

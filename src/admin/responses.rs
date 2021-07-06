@@ -54,6 +54,23 @@ pub struct SearchCommentResponse {
 }
 
 #[derive(Default, Serialize)]
+pub struct SearchUserItem {
+    pub username: String,
+    pub name: String,
+    pub age: i32,
+    pub gender: String,
+    pub telephone: String,
+    pub is_banned: bool,
+}
+
+#[derive(Default, Serialize)]
+pub struct SearchUserResponse {
+    pub success: bool,
+    pub err: String,
+    pub users: Vec<SearchUserItem>,
+}
+
+#[derive(Default, Serialize)]
 pub struct ViewUserResponse {
     pub success: bool,
     pub err: String,
@@ -70,5 +87,6 @@ crate::impl_err_response! {
     SearchDoctorResponse,
     SearchDepartResponse,
     SearchCommentResponse,
+    SearchUserResponse,
     ViewUserResponse,
 }

@@ -52,6 +52,7 @@ crate::post_funcs! {
     (modify_depart, "/modify_depart", ModifyDepartRequest, SimpleResponse),
     (search_comment, "/search_comment", SearchCommentRequest, SearchCommentResponse),
     (delete_comment, "/delete_comment", DeleteCommentRequest, SimpleResponse),
+    (search_user, "/search_user", SearchUserRequest, SearchUserResponse),
     (view_user, "/view_user", ViewUserRequest, ViewUserResponse),
     (ban_user, "/ban_user", BanUserRequest, SimpleResponse),
 }
@@ -506,6 +507,52 @@ async fn delete_comment_impl(
     Ok(SimpleResponse::ok())
 }
 
+async fn search_user_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<SearchUserRequest>,
+) -> anyhow::Result<SearchUserResponse> {
+    use crate::schema::users;
+
+    let info = info.into_inner();
+    // get_aid_from_token(info.login_token, &pool).await?;
+
+    let username_pattern = crate::utils::get_str_pattern_opt(info.username);
+
+    let conn = get_db_conn(&pool)?;
+    let first_index = info.first_index.unwrap_or(0).max(0);
+    let limit = info.limit.unwrap_or(10).max(0);
+    let usrs = web::block(move || {
+        users::table
+            .filter(users::username.like(username_pattern))
+            .order(users::username.asc())
+            .offset(first_index)
+            .limit(limit)
+            .get_results::<UserData>(&conn)
+    })
+    .await
+    .context("数据库错误")?;
+
+    let usrs = usrs
+        .into_iter()
+        .map(|data| SearchUserItem {
+            username: data.username,
+            name: data.name,
+            age: data
+                .birthday
+                .map_or(-1, |birth| Utc::now().year() - birth.year()),
+            gender: data.gender,
+            telephone: data.telephone,
+            is_banned: data.is_banned,
+        })
+        .collect();
+
+    Ok(SearchUserResponse {
+        success: true,
+        err: "".to_string(),
+        users: usrs,
+    })
+}
+
 async fn view_user_impl(
     pool: web::Data<DbPool>,
     info: web::Json<ViewUserRequest>,
@@ -513,7 +560,7 @@ async fn view_user_impl(
     use crate::schema::users;
 
     let info = info.into_inner();
-    get_aid_from_token(info.login_token, &pool).await?;
+    // get_aid_from_token(info.login_token, &pool).await?;
     assert::assert_user(&pool, info.username.clone(), false).await?;
 
     let conn = get_db_conn(&pool)?;
