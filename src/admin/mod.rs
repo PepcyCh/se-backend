@@ -35,6 +35,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(modify_depart)
         .service(search_comment)
         .service(delete_comment)
+        .service(search_user)
         .service(view_user)
         .service(ban_user);
 }
