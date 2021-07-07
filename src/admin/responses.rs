@@ -26,6 +26,18 @@ pub struct SearchDoctorResponse {
 }
 
 #[derive(Default, Serialize)]
+pub struct ViewDoctorResponse {
+    pub success: bool,
+    pub err: String,
+    pub did: String,
+    pub name: String,
+    pub birthday: String,
+    pub gender: String,
+    pub depart: String,
+    pub rank: String,
+}
+
+#[derive(Default, Serialize)]
 pub struct SearchDepartItem {
     pub name: String,
     pub info: String,
@@ -85,6 +97,7 @@ pub struct ViewUserResponse {
 crate::impl_err_response! {
     LoginResponse,
     SearchDoctorResponse,
+    ViewDoctorResponse,
     SearchDepartResponse,
     SearchCommentResponse,
     SearchUserResponse,

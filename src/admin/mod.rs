@@ -29,6 +29,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(logout)
         .service(add_doctor)
         .service(search_doctor)
+        .service(view_doctor)
         .service(modify_doctor)
         .service(add_depart)
         .service(search_depart)
@@ -48,6 +49,7 @@ crate::post_funcs! {
     (modify_password, "/modify_password", ModifyPasswordRequest, SimpleResponse),
     (add_doctor, "/add_doctor", AddDoctorRequest, SimpleResponse),
     (search_doctor, "/search_doctor", SearchDoctorRequest, SearchDoctorResponse),
+    (view_doctor, "/view_doctor", ViewDoctorRequest, ViewDoctorResponse),
     (modify_doctor, "/modify_doctor", ModifyDoctorRequest, SimpleResponse),
     (add_depart, "/add_depart", AddDepartRequst, SimpleResponse),
     (search_depart, "/search_depart", SearchDepartRequest, SearchDepartResponse),
@@ -302,6 +304,40 @@ async fn search_doctor_impl(
         success: true,
         err: "".to_string(),
         doctors: docs,
+    })
+}
+
+async fn view_doctor_impl(
+    pool: web::Data<DbPool>,
+    info: web::Json<ViewDoctorRequest>,
+) -> anyhow::Result<ViewDoctorResponse> {
+    use crate::schema::doctors;
+
+    let info = info.into_inner();
+    assert::assert_doctor(&pool, info.did.clone()).await?;
+
+    let conn = get_db_conn(&pool)?;
+    let did = info.did;
+    let data = web::block(move || {
+        doctors::table
+            .filter(doctors::did.eq(did))
+            .get_result::<DoctorData>(&conn)
+    })
+    .await
+    .context("数据库错误")?;
+
+    Ok(ViewDoctorResponse {
+        success: true,
+        err: "".to_string(),
+        did: data.did,
+        name: data.name,
+        birthday: format!(
+            "{}",
+            data.birthday.unwrap_or(NaiveDate::from_ymd(1970, 1, 1))
+        ),
+        gender: data.gender,
+        depart: data.department,
+        rank: data.rank,
     })
 }
 

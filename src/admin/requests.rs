@@ -47,6 +47,12 @@ pub struct SearchDoctorRequest {
 }
 
 #[derive(Deserialize)]
+pub struct ViewDoctorRequest {
+    // pub login_token: String,
+    pub did: String,
+}
+
+#[derive(Deserialize)]
 pub struct ModifyDoctorRequest {
     pub login_token: String,
     pub did: String,
