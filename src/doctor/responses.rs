@@ -15,6 +15,7 @@ pub struct ViewInfoResponse {
     pub name: String,
     pub birthday: String,
     pub gender: String,
+    pub rankk: String,
     pub info: String,
     pub depart: String,
     pub depart_info: String,

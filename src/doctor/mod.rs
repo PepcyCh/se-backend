@@ -149,6 +149,7 @@ async fn view_info_impl(
                 .unwrap_or(NaiveDate::from_ymd(1970, 1, 1))
         ),
         gender: doctor_data.gender,
+        rankk: doctor_data.rank,
         info: doctor_data.information,
         depart: doctor_data.department,
         depart_info: depart_data.information,
