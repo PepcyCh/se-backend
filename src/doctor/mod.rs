@@ -45,7 +45,7 @@ crate::post_funcs! {
     (view_info, "/view_info", ViewInfoRequest, ViewInfoResponse),
     (modify_password, "/modify_password", ModifyPasswordRequest, SimpleResponse),
     (modify_info, "/modify_info", ModifyInfoRequest, SimpleResponse),
-    (add_time, "/add_time", AddTimeRequest, SimpleResponse),
+    (add_time, "/add_time", AddTimeRequest, AddTimeResponse),
     (modify_time, "/modify_time", ModifyTimeRequest, SimpleResponse),
     (delete_time, "/delete_time", DeleteTimeRequest, SimpleResponse),
     (search_time, "/search_time", SearchTimeRequest, SearchTimeResponse),
@@ -232,7 +232,7 @@ async fn modify_info_impl(
 async fn add_time_impl(
     pool: web::Data<DbPool>,
     info: web::Json<AddTimeRequest>,
-) -> anyhow::Result<SimpleResponse> {
+) -> anyhow::Result<AddTimeResponse> {
     use crate::schema::times;
 
     let info = info.into_inner();
@@ -244,7 +244,7 @@ async fn add_time_impl(
     // }
 
     let conn = get_db_conn(&pool)?;
-    web::block(move || {
+    let tid = web::block(move || {
         conn.transaction(|| {
             let res = times::table
                 .filter(times::did.eq(&did))
@@ -261,9 +261,9 @@ async fn add_time_impl(
             }
 
             let data = NewTime {
-                did,
-                start_time,
-                end_time,
+                did: did.clone(),
+                start_time: start_time.clone(),
+                end_time: end_time.clone(),
                 capacity: info.capacity,
             };
             diesel::insert_into(times::table)
@@ -271,12 +271,23 @@ async fn add_time_impl(
                 .execute(&conn)
                 .context("数据库错误")?;
 
-            Ok(())
+            let data = times::table
+                .filter(times::did.eq(did))
+                .filter(times::start_time.eq(start_time))
+                .filter(times::end_time.eq(end_time))
+                .get_result::<TimeData>(&conn)
+                .context("数据库错误")?;
+
+            Ok(data.tid)
         })
     })
     .await?;
 
-    Ok(SimpleResponse::ok())
+    Ok(AddTimeResponse {
+        success: true,
+        err: "".to_string(),
+        tid,
+    })
 }
 
 async fn modify_time_impl(
