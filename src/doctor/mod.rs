@@ -442,7 +442,11 @@ async fn search_appoint_impl(
     let conn = get_db_conn(&pool)?;
     let first_index = info.first_index.unwrap_or(0).max(0);
     let limit = info.limit.unwrap_or(30).max(0);
-    let status = info.status;
+    let status = if info.status.is_empty() {
+        APPOINT_STATUS_UNFINISHED.to_string()
+    } else {
+        info.status
+    };
     let appos = web::block(move || {
         times::table
             .filter(times::did.eq(&did))
